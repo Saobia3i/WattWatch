@@ -39,12 +39,11 @@ export async function GET() {
 // POST: Toggle a device on/off
 export async function POST(request: NextRequest) {
   try {
+    // Parse the JSON exactly once to get the ID from the frontend
     const { id } = await request.json();
     const db = await getDb();
-    const { id, status } = await request.json();
-    const device = db.devices.find((d) => d.id === id);
 
-    // 1. Find the device
+    // 1. Find the device in the SQLite database
     const device = await db.get("SELECT * FROM devices WHERE id = ?", [id]);
     if (!device) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
@@ -53,13 +52,6 @@ export async function POST(request: NextRequest) {
     // 2. Toggle the status (0 to 1, or 1 to 0)
     const newIsOn = device.is_on === 1 ? 0 : 1;
     const now = new Date().toISOString();
-    if (status !== "on" && status !== "off") {
-      return NextResponse.json({ error: "Device status must be 'on' or 'off'" }, { status: 400 });
-    }
-
-    // Telemetry update from simulator/database feed.
-    device.status = status;
-    device.lastChanged = new Date().toISOString();
 
     // 3. Save the new status to SQLite
     await db.run(
