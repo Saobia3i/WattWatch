@@ -60,22 +60,35 @@ def main():
     # Initial state
     today_kwh = 4.85
     occupancy_states = {r: True for r in ROOMS}
+    
+    # Track when a room became empty (vacant)
+    # vacant_since[room] stores unix timestamp if empty, else None
+    vacant_since = {r: None for r in ROOMS}
+    
+    # Avoid duplicate alerts firing in a row
+    triggered_vacant_alerts = {r: False for r in ROOMS}
 
     while True:
         # 1. Randomly transition occupancy status for each room
         for r in ROOMS:
-            # 25% chance to toggle occupancy state on each loop iteration
-            if random.random() < 0.25:
+            # 30% chance to toggle occupancy status
+            if random.random() < 0.30:
+                was_occupied = occupancy_states[r]
                 occupancy_states[r] = not occupancy_states[r]
+                
+                # Print transitions to help trace timing
+                if was_occupied and not occupancy_states[r]:
+                    print(f"  >>> [Simulator] All people have left {ROOM_NAMES[r]}. Starting 15-minute countdown.")
+                    vacant_since[r] = time.time()
+                    triggered_vacant_alerts[r] = False
+                elif not was_occupied and occupancy_states[r]:
+                    print(f"  >>> [Simulator] Human entered {ROOM_NAMES[r]}. Countdown reset.")
+                    vacant_since[r] = None
+                    triggered_vacant_alerts[r] = False
 
-        # 2. Pick a random room and toggle its occupancy on the server
-        # This will broadcast updates to the web client via SSE
-        target_room = random.choice(ROOMS)
-        is_occupied = occupancy_states[target_room]
-        
+        # 2. Sync full occupancy status to server to trigger client updates
         payload = {
-            "room": target_room,
-            "isOccupied": is_occupied,
+            "occupancy": occupancy_states,
             "todayKwh": round(today_kwh, 5)
         }
         
@@ -88,10 +101,18 @@ def main():
         devices = server_state.get("devices", [])
         current_occupancy = server_state.get("occupancy", occupancy_states)
         
-        # Keep local occupancy states in sync with server response
+        # Sync local dictionary with server state
         for r in ROOMS:
             if r in current_occupancy:
-                occupancy_states[r] = current_occupancy[r]
+                # If server state changed (e.g. overridden by toggles), capture transition
+                if occupancy_states[r] != current_occupancy[r]:
+                    occupancy_states[r] = current_occupancy[r]
+                    if not occupancy_states[r]:
+                        vacant_since[r] = time.time()
+                        triggered_vacant_alerts[r] = False
+                    else:
+                        vacant_since[r] = None
+                        triggered_vacant_alerts[r] = False
 
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Occupancy Status:")
         for r in ROOMS:
@@ -101,25 +122,46 @@ def main():
         # 3. Check Rules & Trigger Alerts
         now = datetime.now()
         
-        # Rule A: Empty Room Warning
-        # If room is VACANT, but has devices running, trigger warning alert
+        # Rule A: Empty Room Warning with 15-Minute Countdown
+        # (15 seconds simulated time = 15 minutes real office time)
+        SIMULATED_15_MINUTES = 15.0  # 15 seconds
+        
         for r in ROOMS:
             room_vacant = not occupancy_states.get(r, False)
             if room_vacant:
                 room_devices = [d for d in devices if d.get("room") == r]
                 active_devices = [d for d in room_devices if d.get("status") == "on"]
                 
+                # Check if there are active devices
                 if active_devices:
-                    device_labels = ", ".join([d.get("label") for d in active_devices])
-                    alert_msg = f"Empty Room Warning: {ROOM_NAMES[r]} is unoccupied, but [{device_labels}] are still running! Turn off room electricity."
-                    print(f"  [ALERT TRIGGERED] {alert_msg}")
+                    if vacant_since[r] is None:
+                        # Fallback if timestamp was lost
+                        vacant_since[r] = time.time()
                     
-                    alert_payload = {
-                        "severity": "warning",
-                        "message": alert_msg,
-                        "room": r
-                    }
-                    make_request(alerts_url, alert_payload, method="POST")
+                    elapsed = time.time() - vacant_since[r]
+                    device_labels = ", ".join([d.get("label") for d in active_devices])
+                    
+                    if elapsed >= SIMULATED_15_MINUTES:
+                        if not triggered_vacant_alerts[r]:
+                            alert_msg = f"Electricity Waste Alert: {ROOM_NAMES[r]} has been unoccupied for 15 minutes, but [{device_labels}] are still ON! Turn off room electricity."
+                            print(f"  [ALERT TRIGGERED] {alert_msg}")
+                            
+                            alert_payload = {
+                                "severity": "warning",
+                                "message": alert_msg,
+                                "room": r
+                            }
+                            make_request(alerts_url, alert_payload, method="POST")
+                            triggered_vacant_alerts[r] = True
+                        else:
+                            print(f"  - {ROOM_NAMES[r]} empty for {int(elapsed)}s. Alert already triggered.")
+                    else:
+                        remaining = int(SIMULATED_15_MINUTES - elapsed)
+                        print(f"  - {ROOM_NAMES[r]} empty for {int(elapsed)}s. Triggering alert in {remaining}s.")
+                else:
+                    # No devices on, reset state
+                    vacant_since[r] = None
+                    triggered_vacant_alerts[r] = False
 
         # Rule B: Devices active after office hours (outside 9 AM - 5 PM)
         current_hour = now.hour
@@ -138,9 +180,7 @@ def main():
                 }
                 make_request(alerts_url, alert_payload, method="POST")
 
-        # Rule C: Room overrun timing calculation
-        # A room where ALL devices have been on for more than 2 hours continuously.
-        # (For simulation demonstration, we treat 30 seconds of continuous runtime as 2 hours)
+        # Rule C: Room overrun timing calculation (All devices in a room on for > 2h continuous)
         for r in ROOMS:
             room_devices = [d for d in devices if d.get("room") == r]
             if not room_devices:
@@ -153,7 +193,6 @@ def main():
                 for d in room_devices:
                     last_changed_str = d.get("lastChanged")
                     try:
-                        # Parse ISO timestamp
                         last_changed = datetime.fromisoformat(last_changed_str.replace("Z", "+00:00"))
                         now_utc = datetime.now(timezone.utc)
                         elapsed_seconds = (now_utc - last_changed).total_seconds()
@@ -162,9 +201,7 @@ def main():
                         print(f"Error parsing timestamp for {d.get('id')}: {ex}")
                 
                 if elapsed_times:
-                    # Continuous duration is determined by the device turned ON most recently
                     continuous_duration = min(elapsed_times)
-                    
                     SIMULATED_2_HOURS = 30 # 30s threshold translates to 2 hours overrun
                     if continuous_duration > SIMULATED_2_HOURS:
                         alert_msg = f"Critical Overrun: All devices in {ROOM_NAMES[r]} have been ON continuously for > 2 hours!"

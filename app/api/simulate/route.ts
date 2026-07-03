@@ -15,16 +15,31 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { room, isOccupied, todayKwh } = body;
+    const { room, isOccupied, occupancy, todayKwh } = body;
 
-    // 1. Update occupancy if provided
-    if (room && typeof isOccupied === "boolean") {
+    let occupancyUpdated = false;
+
+    // 1. Update occupancy if provided (supports full object update or single key update)
+    if (occupancy && typeof occupancy === "object") {
+      const occObj = occupancy as Record<string, unknown>;
+      Object.keys(occObj).forEach((r) => {
+        if (r in db.occupancy) {
+          db.occupancy[r] = !!occObj[r];
+        }
+      });
+      occupancyUpdated = true;
+      console.log("[Simulator API] Full occupancy state updated:", db.occupancy);
+    } else if (room && typeof isOccupied === "boolean") {
       if (room in db.occupancy) {
         db.occupancy[room] = isOccupied;
+        occupancyUpdated = true;
         console.log(`[Simulator API] Room "${room}" occupancy updated to: ${isOccupied}`);
-        // Broadcast occupancy changes to all SSE clients
-        broadcast("occupancy_update", db.occupancy);
       }
+    }
+
+    if (occupancyUpdated) {
+      // Broadcast occupancy changes to all SSE clients
+      broadcast("occupancy_update", db.occupancy);
     }
 
     // 2. Update today's energy if provided

@@ -276,6 +276,40 @@ export default function OfficeBlueprint({ devices, occupancy, onToggleDevice }: 
             </text>
           )}
 
+          {/* 10. Architectural Human Occupancy Figures (Appear on sofa/chairs when occupied) */}
+          {occupancy.drawing && (
+            <g>
+              {/* Person sitting on the sofa */}
+              <circle cx="58" cy="180" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
+              <path d="M 52,186 Q 58,191 64,186" className="stroke-power-on fill-none" strokeWidth="1.2" />
+              {/* Person sitting in the armchair */}
+              <circle cx="57" cy="295" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
+              <path d="M 51,301 Q 57,306 63,301" className="stroke-power-on fill-none" strokeWidth="1.2" />
+            </g>
+          )}
+
+          {occupancy.work1 && (
+            <g>
+              {/* Person sitting at desk 1 */}
+              <circle cx="310" cy="144" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
+              <path d="M 304,150 Q 310,155 316,150" className="stroke-power-on fill-none" strokeWidth="1.2" />
+              {/* Person sitting at desk 4 */}
+              <circle cx="480" cy="196" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
+              <path d="M 474,202 Q 480,207 486,202" className="stroke-power-on fill-none" strokeWidth="1.2" />
+            </g>
+          )}
+
+          {occupancy.work2 && (
+            <g>
+              {/* Person sitting at desk 1 */}
+              <circle cx="560" cy="144" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
+              <path d="M 554,150 Q 560,155 566,150" className="stroke-power-on fill-none" strokeWidth="1.2" />
+              {/* Person sitting at desk 4 */}
+              <circle cx="730" cy="196" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
+              <path d="M 724,202 Q 730,207 736,202" className="stroke-power-on fill-none" strokeWidth="1.2" />
+            </g>
+          )}
+
           {/* 9. Interactive Devices (15 total: 6 fans, 9 lights - matching visual spec) */}
           {/* --- DRAWING ROOM DEVICES (2 Fans, 3 Lights) --- */}
           <DeviceMarker device={getDevice("drawing-fan-1")} x={150} y={100} onToggle={onToggleDevice} />
