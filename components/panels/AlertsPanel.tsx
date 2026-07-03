@@ -11,14 +11,17 @@ type AlertsPanelProps = {
 };
 
 export default function AlertsPanel({ alerts, onClearAlert }: AlertsPanelProps) {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    }
+    return false;
+  });
 
   // Monitor prefers-reduced-motion media query
   useEffect(() => {
     if (typeof window !== "undefined") {
       const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-      setPrefersReducedMotion(mediaQuery.matches);
-      
       const listener = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
       mediaQuery.addEventListener("change", listener);
       return () => mediaQuery.removeEventListener("change", listener);
@@ -30,7 +33,7 @@ export default function AlertsPanel({ alerts, onClearAlert }: AlertsPanelProps) 
       {/* Panel Header */}
       <div className="flex items-center justify-between border-b border-line pb-2 mb-4">
         <span className="font-display text-xs font-bold uppercase tracking-wider text-ink">
-          // ACTIVE_ANOMALY_ALERTS
+          {"// ACTIVE_ANOMALY_ALERTS"}
         </span>
         <span className="font-mono text-[9px] text-alert font-bold bg-alert/5 border border-alert/20 px-1.5 py-0.5 rounded">
           {alerts.length} ALERTS
@@ -53,7 +56,7 @@ export default function AlertsPanel({ alerts, onClearAlert }: AlertsPanelProps) 
                 No alerts.
               </span>
               <span className="font-sans text-[10px] text-ink-muted">
-                Everything's where it should be.
+                Everything&apos;s where it should be.
               </span>
             </motion.div>
           ) : (
@@ -113,7 +116,7 @@ export default function AlertsPanel({ alerts, onClearAlert }: AlertsPanelProps) 
                           {alert.severity}
                         </span>
                         
-                        <span className="font-mono text-[9px] text-ink-muted">
+                        <span className="font-mono text-[9px] text-ink-muted" suppressHydrationWarning>
                           {formatTime(alert.timestamp)}
                         </span>
                       </div>

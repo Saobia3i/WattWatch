@@ -17,7 +17,9 @@ function useAnimatedNumber(target: number, duration: number = 400, precision: nu
 
     const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (prefersReduced) {
-      setCurrent(target);
+      requestAnimationFrame(() => {
+        setCurrent(target);
+      });
       return;
     }
 
@@ -46,6 +48,7 @@ function useAnimatedNumber(target: number, duration: number = 400, precision: nu
 
     frameId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(frameId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [target, duration, precision]);
 
   return current;
@@ -55,8 +58,8 @@ export default function PowerMeterPanel({ usage }: PowerMeterPanelProps) {
   const animatedWatts = useAnimatedNumber(usage.totalWattsNow, 350, 0);
   const animatedKwh = useAnimatedNumber(usage.todayKwh, 350, 2);
 
-  // Maximum scale for the room load bars (total max could be 2 fans + 4 lights = 180W per room)
-  const MAX_ROOM_WATTS = 180;
+  // Maximum scale for the room load bars (total max could be 2 fans + 3 lights = 165W per room)
+  const MAX_ROOM_WATTS = 165;
 
   return (
     <div className="border-2 border-line rounded-lg bg-canvas p-5 flex flex-col justify-between h-full relative overflow-hidden">
@@ -67,7 +70,7 @@ export default function PowerMeterPanel({ usage }: PowerMeterPanelProps) {
         {/* Panel Header */}
         <div className="flex items-center justify-between border-b border-line pb-2">
           <span className="font-display text-xs font-bold uppercase tracking-wider text-ink">
-            // TELEMETRY_MATRIX
+            {"// TELEMETRY_MATRIX"}
           </span>
           <span className="font-mono text-[9px] text-ink-muted">SYS_ACTIVE</span>
         </div>
@@ -154,7 +157,7 @@ export default function PowerMeterPanel({ usage }: PowerMeterPanelProps) {
       {/* Carbon Offset or Technical Footer */}
       <div className="relative z-10 border-t border-line pt-2 mt-4 text-[9px] font-mono text-ink-muted flex justify-between">
         <span>UNIT: KILOWATT_HOUR</span>
-        <span>PEAK_CAP: 540W</span>
+        <span>PEAK_CAP: 495W</span>
       </div>
     </div>
   );

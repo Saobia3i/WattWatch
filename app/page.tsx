@@ -69,7 +69,7 @@ export default function Home() {
         <div className="block lg:hidden border-2 border-line rounded-lg bg-canvas p-4 shadow-inner">
           <div className="flex justify-between items-center pb-2 mb-3 border-b border-line">
             <span className="font-display text-xs font-bold text-ink uppercase tracking-wider">
-              // ROOM_ACCORDION_BLUEPRINT
+              {"// ROOM_ACCORDION_BLUEPRINT"}
             </span>
             <span className="font-mono text-[8px] text-accent-line">EXPANDABLE_MAP</span>
           </div>
@@ -113,7 +113,7 @@ export default function Home() {
                       {/* Technical Room Stats */}
                       <div className="grid grid-cols-2 gap-2 text-[9px] font-mono text-ink-muted border-b border-line/40 pb-2 mb-1">
                         <span>OCCUPANCY: {activeCount > 1 ? "OCCUPIED" : "VACANT"}</span>
-                        <span className="text-right">PEAK_CAPACITY: 180W</span>
+                        <span className="text-right">PEAK_CAPACITY: 165W</span>
                       </div>
 
                       {/* Device List for Room */}

@@ -13,7 +13,7 @@ type DeviceStatusPanelProps = {
 
 export default function DeviceStatusPanel({ devices, onToggleDevice }: DeviceStatusPanelProps) {
   // We need to trigger an update for relative timestamps every few seconds
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
   useEffect(() => {
     const interval = setInterval(() => {
       setTick((t) => t + 1);
@@ -32,9 +32,9 @@ export default function DeviceStatusPanel({ devices, onToggleDevice }: DeviceSta
       {/* Panel Header */}
       <div className="flex items-center justify-between border-b border-line pb-2">
         <span className="font-display text-xs font-bold uppercase tracking-wider text-ink">
-          // DEVICE_STATUS_REGISTRY
+          {"// DEVICE_STATUS_REGISTRY"}
         </span>
-        <span className="font-mono text-[9px] text-ink-muted">TOTAL_DEVS: 18</span>
+        <span className="font-mono text-[9px] text-ink-muted">TOTAL_DEVS: {devices.length}</span>
       </div>
 
       {/* Grid of rooms (3 columns on desktop, 1 on mobile) */}
@@ -76,7 +76,7 @@ export default function DeviceStatusPanel({ devices, onToggleDevice }: DeviceSta
                             </span>
                           </div>
                           
-                          <span className="font-mono text-[8px] text-ink-muted mt-0.5">
+                          <span className="font-mono text-[8px] text-ink-muted mt-0.5" suppressHydrationWarning>
                             {isOn ? formatWatts(device.wattage) : "0 W"} • {formatRelativeTime(device.lastChanged)}
                           </span>
                         </div>

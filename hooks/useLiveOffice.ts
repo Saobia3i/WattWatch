@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Device, Alert, UsageStats, SSE_STREAM_URL } from "../lib/api-client";
 
-// Helper to initialize 18 devices (2 fans, 4 lights per room * 3 rooms = 18 devices)
-// This resolves the discrepancy in the specs and yields exactly 18 devices.
+// Helper to initialize 15 devices (2 fans, 3 lights per room * 3 rooms = 15 devices)
+// This matches the official visual floor plan.
 const INITIAL_DEVICES: Device[] = [
   // Drawing Room (drawing)
   { id: "drawing-fan-1", type: "fan", room: "drawing", label: "Fan 1", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
@@ -12,7 +12,6 @@ const INITIAL_DEVICES: Device[] = [
   { id: "drawing-light-1", type: "light", room: "drawing", label: "Light 1", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "drawing-light-2", type: "light", room: "drawing", label: "Light 2", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "drawing-light-3", type: "light", room: "drawing", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "drawing-light-4", type: "light", room: "drawing", label: "Light 4", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
 
   // Work Room 1 (work1)
   { id: "work1-fan-1", type: "fan", room: "work1", label: "Fan 1", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
@@ -20,7 +19,6 @@ const INITIAL_DEVICES: Device[] = [
   { id: "work1-light-1", type: "light", room: "work1", label: "Light 1", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "work1-light-2", type: "light", room: "work1", label: "Light 2", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "work1-light-3", type: "light", room: "work1", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work1-light-4", type: "light", room: "work1", label: "Light 4", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
 
   // Work Room 2 (work2)
   { id: "work2-fan-1", type: "fan", room: "work2", label: "Fan 1", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
@@ -28,7 +26,6 @@ const INITIAL_DEVICES: Device[] = [
   { id: "work2-light-1", type: "light", room: "work2", label: "Light 1", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "work2-light-2", type: "light", room: "work2", label: "Light 2", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "work2-light-3", type: "light", room: "work2", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work2-light-4", type: "light", room: "work2", label: "Light 4", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
 ];
 
 const INITIAL_ALERTS: Alert[] = [
@@ -44,22 +41,37 @@ const INITIAL_ALERTS: Alert[] = [
 export function useLiveOffice() {
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
   const [alerts, setAlerts] = useState<Alert[]>(INITIAL_ALERTS);
-  const [usage, setUsage] = useState<UsageStats>({
-    totalWattsNow: 0,
-    todayKwh: 4.85, // start with a realistic daily baseline
-    perRoom: { drawing: 0, work1: 0, work2: 0 },
-  });
+  const [todayKwh, setTodayKwh] = useState(4.85); // start with a realistic daily baseline
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "reconnecting" | "mock">("reconnecting");
 
   // Keep references to state for use in callbacks / timers
   const devicesRef = useRef(devices);
-  devicesRef.current = devices;
-
   const alertsRef = useRef(alerts);
-  alertsRef.current = alerts;
 
-  const usageRef = useRef(usage);
-  usageRef.current = usage;
+  useEffect(() => {
+    devicesRef.current = devices;
+  }, [devices]);
+
+  useEffect(() => {
+    alertsRef.current = alerts;
+  }, [alerts]);
+
+  // Derive power calculations directly from devices state (prevents cascading state updates)
+  let totalWattsNow = 0;
+  const perRoomWatts = { drawing: 0, work1: 0, work2: 0 };
+
+  devices.forEach((d) => {
+    if (d.status === "on") {
+      totalWattsNow += d.wattage;
+      perRoomWatts[d.room] += d.wattage;
+    }
+  });
+
+  const usage: UsageStats = {
+    totalWattsNow,
+    todayKwh,
+    perRoom: perRoomWatts,
+  };
 
   // Toggle a device state manually (either via click on blueprint or panel)
   const toggleDevice = useCallback((id: string) => {
@@ -82,25 +94,6 @@ export function useLiveOffice() {
   const clearAlert = useCallback((id: string) => {
     setAlerts((prev) => prev.filter((a) => a.id !== id));
   }, []);
-
-  // Recalculate power draw and usage statistics whenever devices list changes
-  useEffect(() => {
-    let totalWatts = 0;
-    const perRoomWatts = { drawing: 0, work1: 0, work2: 0 };
-
-    devices.forEach((d) => {
-      if (d.status === "on") {
-        totalWatts += d.wattage;
-        perRoomWatts[d.room] += d.wattage;
-      }
-    });
-
-    setUsage((prev) => ({
-      ...prev,
-      totalWattsNow: totalWatts,
-      perRoom: perRoomWatts,
-    }));
-  }, [devices]);
 
   // SSE Subscription & Reconnection logic + Simulator Fallback
   useEffect(() => {
@@ -136,10 +129,9 @@ export function useLiveOffice() {
                 return [newAlert, ...prev];
               });
             } else if (data.type === "usage_update") {
-              setUsage((prev) => ({
-                ...prev,
-                ...data.payload,
-              }));
+              if (data.payload && typeof data.payload.todayKwh === "number") {
+                setTodayKwh(data.payload.todayKwh);
+              }
             }
           } catch (e) {
             console.error("Error parsing SSE event data:", e);
@@ -222,18 +214,21 @@ export function useLiveOffice() {
       // Accumulate energy consumption: add watt-seconds to kWh total
       // kWh = (Watts * seconds) / (3600 * 1000)
       energyAccumulationTimer = setInterval(() => {
-        const totalWatts = usageRef.current.totalWattsNow;
+        const currentDevices = devicesRef.current;
+        let totalWatts = 0;
+        currentDevices.forEach((d) => {
+          if (d.status === "on") {
+            totalWatts += d.wattage;
+          }
+        });
+
         // add a tiny background office load (servers, routers) if total watts is 0
         const currentDraw = totalWatts > 0 ? totalWatts : 120; // 120W ambient draw
         const incrementKwh = (currentDraw * 1) / (3600 * 1000);
 
-        setUsage((prev) => ({
-          ...prev,
-          todayKwh: Number((prev.todayKwh + incrementKwh).toFixed(5)),
-        }));
+        setTodayKwh((prev) => Number((prev + incrementKwh).toFixed(5)));
 
         // Rule check: Device fully on > 2h continuous
-        const currentDevices = devicesRef.current;
         const activeAlerts = alertsRef.current;
         const nowMs = Date.now();
 
