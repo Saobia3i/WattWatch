@@ -6,25 +6,25 @@ import { Device, Alert, UsageStats, SSE_STREAM_URL } from "../lib/api-client";
 // Helper to initialize 15 devices (2 fans, 3 lights per room * 3 rooms = 15 devices)
 const INITIAL_DEVICES: Device[] = [
   // Drawing Room (drawing)
-  { id: "drawing-fan-1", type: "fan", room: "drawing", label: "Fan 1", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "drawing-fan-2", type: "fan", room: "drawing", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "drawing-light-1", type: "light", room: "drawing", label: "Light 1", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "drawing-light-2", type: "light", room: "drawing", label: "Light 2", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "drawing-light-3", type: "light", room: "drawing", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "drawing-fan-1", type: "fan", room: "drawing", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "drawing-fan-2", type: "fan", room: "drawing", label: "Fan 2", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "drawing-light-1", type: "light", room: "drawing", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "drawing-light-2", type: "light", room: "drawing", label: "Light 2", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "drawing-light-3", type: "light", room: "drawing", label: "Light 3", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
 
   // Work Room 1 (work1)
-  { id: "work1-fan-1", type: "fan", room: "work1", label: "Fan 1", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "work1-fan-2", type: "fan", room: "work1", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "work1-light-1", type: "light", room: "work1", label: "Light 1", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work1-light-2", type: "light", room: "work1", label: "Light 2", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work1-light-3", type: "light", room: "work1", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work1-fan-1", type: "fan", room: "work1", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "work1-fan-2", type: "fan", room: "work1", label: "Fan 2", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "work1-light-1", type: "light", room: "work1", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work1-light-2", type: "light", room: "work1", label: "Light 2", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work1-light-3", type: "light", room: "work1", label: "Light 3", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
 
   // Work Room 2 (work2)
-  { id: "work2-fan-1", type: "fan", room: "work2", label: "Fan 1", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "work2-fan-2", type: "fan", room: "work2", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "work2-light-1", type: "light", room: "work2", label: "Light 1", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work2-light-2", type: "light", room: "work2", label: "Light 2", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work2-light-3", type: "light", room: "work2", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work2-fan-1", type: "fan", room: "work2", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "work2-fan-2", type: "fan", room: "work2", label: "Fan 2", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "work2-light-1", type: "light", room: "work2", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work2-light-2", type: "light", room: "work2", label: "Light 2", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work2-light-3", type: "light", room: "work2", label: "Light 3", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
 ];
 
 const INITIAL_ALERTS: Alert[] = [
@@ -36,6 +36,26 @@ const INITIAL_ALERTS: Alert[] = [
     timestamp: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
   }
 ];
+
+const ROOM_KEYS = ["drawing", "work1", "work2"] as const;
+type RoomKey = (typeof ROOM_KEYS)[number];
+const EMPTY_ROOM_ALERT_DELAY_MS = 15 * 60 * 1000;
+
+function sameOccupancy(a: Record<string, boolean>, b: Record<string, boolean>) {
+  return ROOM_KEYS.every((room) => a[room] === b[room]);
+}
+
+function dedupeAlerts(alerts: Alert[]) {
+  const seen = new Set<string>();
+  return alerts.filter((alert) => {
+    const key = alert.id || `${alert.room ?? "office"}-${alert.severity}-${alert.message}-${alert.timestamp}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
 
 export function useLiveOffice() {
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
@@ -51,6 +71,17 @@ export function useLiveOffice() {
   // Keep references to state for use in callbacks / timers
   const devicesRef = useRef(devices);
   const alertsRef = useRef(alerts);
+  const occupancyRef = useRef(occupancy);
+  const vacantSinceRef = useRef<Record<RoomKey, number | null>>({
+    drawing: null,
+    work1: null,
+    work2: null,
+  });
+  const emptyRoomAlertSentRef = useRef<Record<RoomKey, boolean>>({
+    drawing: false,
+    work1: false,
+    work2: false,
+  });
 
   useEffect(() => {
     devicesRef.current = devices;
@@ -59,6 +90,10 @@ export function useLiveOffice() {
   useEffect(() => {
     alertsRef.current = alerts;
   }, [alerts]);
+
+  useEffect(() => {
+    occupancyRef.current = occupancy;
+  }, [occupancy]);
 
   // Derive active load per room and total load
   let totalWattsNow = 0;
@@ -77,30 +112,20 @@ export function useLiveOffice() {
     perRoom: perRoomWatts,
   };
 
-  // Toggle a device state manually
-  const toggleDevice = useCallback((id: string) => {
-    // Optimistic UI update
+  const setDeviceStatus = useCallback((id: string, status: Device["status"]) => {
+    const lastChanged = new Date().toISOString();
+
     setDevices((prev) =>
-      prev.map((d) => {
-        if (d.id === id) {
-          return {
-            ...d,
-            status: d.status === "on" ? "off" : "on",
-            lastChanged: new Date().toISOString(),
-          };
-        }
-        return d;
-      })
+      prev.map((d) => (d.id === id ? { ...d, status, lastChanged } : d))
     );
 
-    // Call API (will broadcast update to SSE clients)
     if (connectionStatus !== "mock") {
       fetch("/api/devices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, status }),
       }).catch((err) => {
-        console.error("Failed to toggle device via API:", err);
+        console.error("Failed to update device telemetry:", err);
       });
     }
   }, [connectionStatus]);
@@ -143,7 +168,7 @@ export function useLiveOffice() {
 
           fetch("/api/alerts")
             .then((r) => r.json())
-            .then((data) => setAlerts(data))
+            .then((data) => setAlerts(dedupeAlerts(data)))
             .catch((e) => console.error("Error fetching alerts:", e));
 
           fetch("/api/simulate")
@@ -154,7 +179,9 @@ export function useLiveOffice() {
                   setTodayKwh(data.todayKwh);
                 }
                 if (data.occupancy) {
-                  setOccupancy(data.occupancy);
+                  setOccupancy((prev) =>
+                    sameOccupancy(prev, data.occupancy) ? prev : data.occupancy
+                  );
                 }
               }
             })
@@ -173,7 +200,7 @@ export function useLiveOffice() {
               const newAlert = data.payload as Alert;
               setAlerts((prev) => {
                 if (prev.some((a) => a.id === newAlert.id)) return prev;
-                return [newAlert, ...prev];
+                return dedupeAlerts([newAlert, ...prev]);
               });
             } else if (data.type === "usage_update") {
               if (data.payload && typeof data.payload.todayKwh === "number") {
@@ -181,7 +208,10 @@ export function useLiveOffice() {
               }
             } else if (data.type === "occupancy_update") {
               if (data.payload) {
-                setOccupancy(data.payload as Record<string, boolean>);
+                const nextOccupancy = data.payload as Record<string, boolean>;
+                setOccupancy((prev) =>
+                  sameOccupancy(prev, nextOccupancy) ? prev : nextOccupancy
+                );
               }
             }
           } catch (e) {
@@ -228,85 +258,12 @@ export function useLiveOffice() {
   useEffect(() => {
     if (connectionStatus !== "mock") return;
 
-    console.log("[Simulator] Starting background mock simulator loops.");
+    console.log("[Simulator] SSE unavailable. Keeping stable local office state.");
 
-    // Randomly toggle a device (employee action) every 10 seconds
-    const simulationTimer = setInterval(() => {
-      const currentDevices = devicesRef.current;
-      const randomIndex = Math.floor(Math.random() * currentDevices.length);
-      const device = currentDevices[randomIndex];
-      
-      const nextStatus = device.status === "on" ? "off" : "on";
-      
-      setDevices((prev) =>
-        prev.map((d, idx) => {
-          if (idx === randomIndex) {
-            return {
-              ...d,
-              status: nextStatus,
-              lastChanged: new Date().toISOString(),
-            };
-          }
-          return d;
-        })
-      );
-
-      // Occasional alert generator
-      const now = new Date();
-      const currentHour = now.getHours();
-      
-      if (nextStatus === "on" && (currentHour >= 17 || currentHour < 9)) {
-        const alertId = `alert-afterhours-${Date.now()}`;
-        const newAlert: Alert = {
-          id: alertId,
-          severity: "warning",
-          message: `After-Hours Warning: ${device.room.toUpperCase()} ${device.label} was turned ON at ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} (outside office hours).`,
-          room: device.room,
-          timestamp: now.toISOString(),
-        };
-        setAlerts((prev) => [newAlert, ...prev]);
-      }
-    }, 10000);
-
-    // Accumulate energy consumption and simulate occupancy changes
-    let tickCount = 0;
+    // Accumulate energy consumption and enforce delayed vacant-room alerts.
     const energyAccumulationTimer = setInterval(() => {
-      tickCount += 1;
       const currentDevices = devicesRef.current;
-      
-      // Randomly toggle room occupancy in simulator (every 6 seconds)
-      if (tickCount % 6 === 0) {
-        const roomsList = ["drawing", "work1", "work2"];
-        const randomRoom = roomsList[Math.floor(Math.random() * roomsList.length)];
-        setOccupancy((prev) => {
-          const nextOccupancy = {
-            ...prev,
-            [randomRoom]: !prev[randomRoom],
-          };
-          
-          // Trigger alert if room is vacant but has active devices
-          const roomDevices = currentDevices.filter((d) => d.room === randomRoom);
-          const activeDevices = roomDevices.filter((d) => d.status === "on");
-          if (!nextOccupancy[randomRoom] && activeDevices.length > 0) {
-            const devLabels = activeDevices.map((d) => d.label).join(", ");
-            const alertId = `alert-vacant-${randomRoom}-${Date.now()}`;
-            const alertMsg = `Empty Room Warning: ${randomRoom.toUpperCase()} is unoccupied, but [${devLabels}] are still running! Turn off room electricity.`;
-            
-            setAlerts((prevAlerts) => [
-              {
-                id: alertId,
-                severity: "warning",
-                message: alertMsg,
-                room: randomRoom,
-                timestamp: new Date().toISOString(),
-              },
-              ...prevAlerts,
-            ]);
-          }
-          
-          return nextOccupancy;
-        });
-      }
+      const nowMs = Date.now();
 
       let totalWatts = 0;
       currentDevices.forEach((d) => {
@@ -320,35 +277,50 @@ export function useLiveOffice() {
 
       setTodayKwh((prev) => Number((prev + incrementKwh).toFixed(5)));
 
-      // Rule check: Device fully on > 2h continuous
-      const activeAlerts = alertsRef.current;
-      const nowMs = Date.now();
-
-      currentDevices.forEach((d) => {
-        if (d.status === "on") {
-          const lastChangedMs = new Date(d.lastChanged).getTime();
-          const durationMs = nowMs - lastChangedMs;
-          
-          const TWO_HOURS_MS = 45000; // 45s in simulation
-          const alertId = `alert-duration-${d.id}`;
-
-          if (durationMs > TWO_HOURS_MS && !activeAlerts.some((a) => a.id === alertId)) {
-            const alertMsg = `Critical Usage: ${d.room.toUpperCase()} ${d.label} has been running continuously for over 2 hours (${d.wattage}W).`;
-            const newAlert: Alert = {
-              id: alertId,
-              severity: "critical",
-              message: alertMsg,
-              room: d.room,
-              timestamp: new Date().toISOString(),
-            };
-            setAlerts((prevAlerts) => [newAlert, ...prevAlerts]);
-          }
+      ROOM_KEYS.forEach((room) => {
+        if (occupancyRef.current[room]) {
+          vacantSinceRef.current[room] = null;
+          emptyRoomAlertSentRef.current[room] = false;
+          return;
         }
+
+        const activeDevices = currentDevices.filter((d) => d.room === room && d.status === "on");
+        if (activeDevices.length === 0) {
+          vacantSinceRef.current[room] = null;
+          emptyRoomAlertSentRef.current[room] = false;
+          return;
+        }
+
+        if (!vacantSinceRef.current[room]) {
+          vacantSinceRef.current[room] = nowMs;
+        }
+
+        const elapsedMs = nowMs - (vacantSinceRef.current[room] || nowMs);
+        if (elapsedMs < EMPTY_ROOM_ALERT_DELAY_MS || emptyRoomAlertSentRef.current[room]) {
+          return;
+        }
+
+        const devLabels = activeDevices.map((d) => d.label).join(", ");
+        const alertId = `alert-vacant-${room}-${nowMs}`;
+        const alertMsg = `Electricity Waste Alert: ${room.toUpperCase()} has been unoccupied for 15 minutes, but [${devLabels}] are still ON! Turn off room electricity.`;
+
+        emptyRoomAlertSentRef.current[room] = true;
+        setAlerts((prevAlerts) =>
+          dedupeAlerts([
+            {
+              id: alertId,
+              severity: "warning",
+              message: alertMsg,
+              room,
+              timestamp: new Date().toISOString(),
+            },
+            ...prevAlerts,
+          ])
+        );
       });
     }, 1000);
 
     return () => {
-      clearInterval(simulationTimer);
       clearInterval(energyAccumulationTimer);
     };
   }, [connectionStatus]);
@@ -359,7 +331,7 @@ export function useLiveOffice() {
     usage,
     occupancy,
     connectionStatus,
-    toggleDevice,
+    setDeviceStatus,
     clearAlert,
   };
 }

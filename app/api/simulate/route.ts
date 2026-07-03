@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { db, broadcast } from "../../../lib/db";
+import { db, broadcast, ensureOccupiedRoomsHaveBaselinePower } from "../../../lib/db";
 
 export async function GET() {
   return NextResponse.json({
@@ -24,20 +24,26 @@ export async function POST(request: NextRequest) {
       const occObj = occupancy as Record<string, unknown>;
       Object.keys(occObj).forEach((r) => {
         if (r in db.occupancy) {
-          db.occupancy[r] = !!occObj[r];
+          const nextOccupied = !!occObj[r];
+          if (db.occupancy[r] !== nextOccupied) {
+            db.occupancy[r] = nextOccupied;
+            occupancyUpdated = true;
+          }
         }
       });
-      occupancyUpdated = true;
       console.log("[Simulator API] Full occupancy state updated:", db.occupancy);
     } else if (room && typeof isOccupied === "boolean") {
       if (room in db.occupancy) {
-        db.occupancy[room] = isOccupied;
-        occupancyUpdated = true;
+        if (db.occupancy[room] !== isOccupied) {
+          db.occupancy[room] = isOccupied;
+          occupancyUpdated = true;
+        }
         console.log(`[Simulator API] Room "${room}" occupancy updated to: ${isOccupied}`);
       }
     }
 
     if (occupancyUpdated) {
+      ensureOccupiedRoomsHaveBaselinePower(db.occupancy);
       // Broadcast occupancy changes to all SSE clients
       broadcast("occupancy_update", db.occupancy);
     }

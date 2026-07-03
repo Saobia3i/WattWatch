@@ -9,15 +9,19 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { id } = await request.json();
+    const { id, status } = await request.json();
     const device = db.devices.find((d) => d.id === id);
 
     if (!device) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
     }
 
-    // Toggle status
-    device.status = device.status === "on" ? "off" : "on";
+    if (status !== "on" && status !== "off") {
+      return NextResponse.json({ error: "Device status must be 'on' or 'off'" }, { status: 400 });
+    }
+
+    // Telemetry update from simulator/database feed.
+    device.status = status;
     device.lastChanged = new Date().toISOString();
 
     // Broadcast update to all SSE clients

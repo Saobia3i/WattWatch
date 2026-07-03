@@ -8,10 +8,10 @@ import { formatWatts, formatRelativeTime } from "../../lib/format";
 
 type DeviceStatusPanelProps = {
   devices: Device[];
-  onToggleDevice: (id: string) => void;
+  onSetDeviceStatus: (id: string, status: Device["status"]) => void;
 };
 
-export default function DeviceStatusPanel({ devices, onToggleDevice }: DeviceStatusPanelProps) {
+export default function DeviceStatusPanel({ devices, onSetDeviceStatus }: DeviceStatusPanelProps) {
   // We need to trigger an update for relative timestamps every few seconds
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -64,7 +64,7 @@ export default function DeviceStatusPanel({ devices, onToggleDevice }: DeviceSta
                     >
                       {/* Left: Indicator & Info */}
                       <div className="flex items-center gap-2.5">
-                        <StatusDot status={isOn ? "on" : "off"} />
+                        <StatusDot status={isOn ? "on" : "off"} pulse={isOn} />
                         
                         <div className="flex flex-col">
                           <div className="flex items-center gap-1.5">
@@ -82,19 +82,35 @@ export default function DeviceStatusPanel({ devices, onToggleDevice }: DeviceSta
                         </div>
                       </div>
 
-                      {/* Right: Technical Toggle Button */}
-                      <button
-                        onClick={() => onToggleDevice(device.id)}
-                        aria-pressed={isOn}
-                        aria-label={`Toggle ${room.name} ${device.label}`}
-                        className={`font-mono text-[9px] font-bold px-2.5 py-1 rounded border transition-all duration-300 uppercase cursor-pointer select-none ${
-                          isOn
-                            ? "bg-power-on border-power-on text-canvas shadow-[0_0_6px_var(--color-power-on)] hover:bg-power-on/90"
-                            : "bg-canvas border-line text-ink-muted hover:border-ink hover:text-ink"
-                        }`}
-                      >
-                        {device.status}
-                      </button>
+                      {/* Right: Explicit Manual Control */}
+                      <div className="grid grid-cols-2 rounded border border-line overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => onSetDeviceStatus(device.id, "on")}
+                          aria-pressed={isOn}
+                          aria-label={`Set ${room.name} ${device.label} on`}
+                          className={`font-mono text-[8px] font-bold px-2 py-1 uppercase transition-colors ${
+                            isOn
+                              ? "bg-power-on text-canvas"
+                              : "bg-canvas text-ink-muted hover:text-ink"
+                          }`}
+                        >
+                          ON
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onSetDeviceStatus(device.id, "off")}
+                          aria-pressed={!isOn}
+                          aria-label={`Set ${room.name} ${device.label} off`}
+                          className={`font-mono text-[8px] font-bold px-2 py-1 uppercase border-l border-line transition-colors ${
+                            !isOn
+                              ? "bg-power-off text-canvas"
+                              : "bg-canvas text-ink-muted hover:text-ink"
+                          }`}
+                        >
+                          OFF
+                        </button>
+                      </div>
                     </div>
                   );
                 })}

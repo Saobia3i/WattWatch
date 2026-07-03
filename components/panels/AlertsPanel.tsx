@@ -61,7 +61,7 @@ export default function AlertsPanel({ alerts, onClearAlert }: AlertsPanelProps) 
             </motion.div>
           ) : (
             <div className="flex flex-col gap-3">
-              {alerts.map((alert) => {
+              {alerts.map((alert, index) => {
                 const isCritical = alert.severity === "critical";
 
                 // Animation parameters based on user accessibility preferences
@@ -91,7 +91,7 @@ export default function AlertsPanel({ alerts, onClearAlert }: AlertsPanelProps) 
 
                 return (
                   <motion.div
-                    key={alert.id}
+                    key={`${alert.id}-${index}`}
                     initial={animationProps.initial}
                     animate={animationProps.animate}
                     exit={animationProps.exit}

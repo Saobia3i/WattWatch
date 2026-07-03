@@ -1,10 +1,11 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { db, broadcast } from "../../../lib/db";
+import { addAlert, db, dedupeAlerts } from "../../../lib/db";
 import { Alert } from "../../../lib/api-client";
 
 export async function GET() {
+  db.alerts = dedupeAlerts(db.alerts);
   return NextResponse.json(db.alerts);
 }
 
@@ -25,16 +26,7 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     };
 
-    // Add to DB
-    db.alerts.unshift(newAlert);
-
-    // Keep active alerts size bounded (e.g. max 50)
-    if (db.alerts.length > 50) {
-      db.alerts.pop();
-    }
-
-    // Broadcast new alert to all SSE clients
-    broadcast("alert", newAlert);
+    addAlert(newAlert);
 
     return NextResponse.json(newAlert);
   } catch (error: unknown) {

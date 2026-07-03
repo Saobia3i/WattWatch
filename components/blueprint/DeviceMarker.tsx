@@ -8,35 +8,24 @@ type DeviceMarkerProps = {
   device: Device;
   x: number;
   y: number;
-  onToggle: (id: string) => void;
 };
 
-export default function DeviceMarker({ device, x, y, onToggle }: DeviceMarkerProps) {
+export default function DeviceMarker({ device, x, y }: DeviceMarkerProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
 
-  const { id, type, label, status, wattage } = device;
+  const { type, label, status, wattage } = device;
   const isOn = status === "on";
-
-  // Handle keydown for accessibility
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onToggle(id);
-    }
-  };
 
   // Get symbol/label to display inside the marker circle
   const markerLabel = `${type === "fan" ? "F" : "L"}${label.split(" ").pop()}`;
 
   // Tooltip details
-  const showTooltip = isHovered || isFocused;
+  const showTooltip = isHovered;
 
   return (
     <g
-      className="cursor-pointer select-none group"
+      className="select-none group"
       transform={`translate(${x}, ${y})`}
-      onClick={() => onToggle(id)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -47,22 +36,12 @@ export default function DeviceMarker({ device, x, y, onToggle }: DeviceMarkerPro
           cy={0}
           r={22}
           className="fill-power-on/15 stroke-power-on/30 stroke-dasharray-[2,2]"
-          animate={{ scale: [1, 1.15, 1] }}
+          animate={{ scale: [1, 1.15, 1], opacity: [0.75, 1, 0.75] }}
           transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
         />
       )}
 
-      {/* Focus Indicator Ring */}
-      <circle
-        cx={0}
-        cy={0}
-        r={26}
-        className={`fill-none stroke-2 transition-all duration-200 ${
-          isFocused ? "stroke-accent-line opacity-100" : "stroke-transparent opacity-0"
-        }`}
-      />
-
-      {/* Main Interactive Button Node */}
+      {/* Main Telemetry Node */}
       <circle
         cx={0}
         cy={0}
@@ -72,12 +51,8 @@ export default function DeviceMarker({ device, x, y, onToggle }: DeviceMarkerPro
             ? "fill-canvas stroke-power-on shadow-[0_0_10px_var(--color-power-on)]"
             : "fill-canvas stroke-power-off"
         }`}
-        tabIndex={0}
-        role="button"
+        role="img"
         aria-label={`${device.room} ${label}: ${status}, drawing ${wattage} watts`}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
-        onKeyDown={handleKeyDown}
       />
 
       {/* Inner Icon Graphic */}
@@ -110,13 +85,19 @@ export default function DeviceMarker({ device, x, y, onToggle }: DeviceMarkerPro
             <line x1={-1} y1={7} x2={1} y2={7} className={isOn ? "stroke-power-on" : "stroke-power-off"} strokeWidth={1.5} />
             {isOn && (
               // Rays
-              <g className="stroke-power-on" strokeWidth={1} strokeLinecap="round">
+              <motion.g
+                className="stroke-power-on"
+                strokeWidth={1}
+                strokeLinecap="round"
+                animate={{ opacity: [0.55, 1, 0.55] }}
+                transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+              >
                 <line x1={0} y1={-8} x2={0} y2={-11} />
                 <line x1={-7} y1={-6} x2={-9} y2={-8} />
                 <line x1={7} y1={-6} x2={9} y2={-8} />
                 <line x1={-8} y1={-2} x2={-11} y2={-2} />
                 <line x1={8} y1={-2} x2={11} y2={-2} />
-              </g>
+              </motion.g>
             )}
           </g>
         )}
@@ -156,7 +137,7 @@ export default function DeviceMarker({ device, x, y, onToggle }: DeviceMarkerPro
             {status.toUpperCase()} • {isOn ? `${wattage}W` : "0W"}
           </text>
           <text x={0} y={15} textAnchor="middle" className="font-mono text-[7px] fill-ink-muted/80">
-            CLICK TO TOGGLE
+            LIVE TELEMETRY
           </text>
         </g>
       )}

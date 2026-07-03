@@ -7,10 +7,21 @@ import { Device } from "../../lib/api-client";
 type OfficeBlueprintProps = {
   devices: Device[];
   occupancy: Record<string, boolean>;
-  onToggleDevice: (id: string) => void;
 };
 
-export default function OfficeBlueprint({ devices, occupancy, onToggleDevice }: OfficeBlueprintProps) {
+function HumanMarker({ x, y }: { x: number; y: number }) {
+  return (
+    <g transform={`translate(${x}, ${y})`} className="pointer-events-none">
+      <circle cx={0} cy={-5} r={4.5} className="fill-canvas stroke-power-on" strokeWidth="1.4" />
+      <path d="M -7,8 Q 0,0 7,8" className="stroke-power-on fill-none" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx={0} cy={1} r={11} className="fill-power-on/10 stroke-power-on/20" strokeWidth="0.8" />
+    </g>
+  );
+}
+
+export default function OfficeBlueprint({ devices, occupancy }: OfficeBlueprintProps) {
+  const isRoomOccupied = (room: "drawing" | "work1" | "work2") => occupancy[room] !== false;
+
   // Find device status helper
   const getDevice = (id: string) => {
     return devices.find((d) => d.id === id) || {
@@ -222,7 +233,7 @@ export default function OfficeBlueprint({ devices, occupancy, onToggleDevice }: 
           <text x="150" y="182" textAnchor="middle" className="font-mono text-[7px] fill-ink-muted tracking-wider">
             WAITING AREA
           </text>
-          {occupancy.drawing ? (
+          {isRoomOccupied("drawing") ? (
             <text x="150" y="195" textAnchor="middle" className="font-mono text-[7px] font-bold fill-power-on tracking-wider">
               ● OCCUPIED
             </text>
@@ -244,7 +255,7 @@ export default function OfficeBlueprint({ devices, occupancy, onToggleDevice }: 
           <text x="395" y="182" textAnchor="middle" className="font-mono text-[7px] fill-ink-muted tracking-wider">
             EMPLOYEES
           </text>
-          {occupancy.work1 ? (
+          {isRoomOccupied("work1") ? (
             <text x="395" y="195" textAnchor="middle" className="font-mono text-[7px] font-bold fill-power-on tracking-wider">
               ● OCCUPIED
             </text>
@@ -266,7 +277,7 @@ export default function OfficeBlueprint({ devices, occupancy, onToggleDevice }: 
           <text x="645" y="182" textAnchor="middle" className="font-mono text-[7px] fill-ink-muted tracking-wider">
             EMPLOYEES
           </text>
-          {occupancy.work2 ? (
+          {isRoomOccupied("work2") ? (
             <text x="645" y="195" textAnchor="middle" className="font-mono text-[7px] font-bold fill-power-on tracking-wider">
               ● OCCUPIED
             </text>
@@ -276,61 +287,49 @@ export default function OfficeBlueprint({ devices, occupancy, onToggleDevice }: 
             </text>
           )}
 
-          {/* 10. Architectural Human Occupancy Figures (Appear on sofa/chairs when occupied) */}
-          {occupancy.drawing && (
+          {/* 10. Human Occupancy Figures */}
+          {isRoomOccupied("drawing") && (
             <g>
-              {/* Person sitting on the sofa */}
-              <circle cx="58" cy="180" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
-              <path d="M 52,186 Q 58,191 64,186" className="stroke-power-on fill-none" strokeWidth="1.2" />
-              {/* Person sitting in the armchair */}
-              <circle cx="57" cy="295" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
-              <path d="M 51,301 Q 57,306 63,301" className="stroke-power-on fill-none" strokeWidth="1.2" />
+              <HumanMarker x={58} y={185} />
+              <HumanMarker x={57} y={300} />
             </g>
           )}
 
-          {occupancy.work1 && (
+          {isRoomOccupied("work1") && (
             <g>
-              {/* Person sitting at desk 1 */}
-              <circle cx="310" cy="144" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
-              <path d="M 304,150 Q 310,155 316,150" className="stroke-power-on fill-none" strokeWidth="1.2" />
-              {/* Person sitting at desk 4 */}
-              <circle cx="480" cy="196" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
-              <path d="M 474,202 Q 480,207 486,202" className="stroke-power-on fill-none" strokeWidth="1.2" />
+              <HumanMarker x={310} y={150} />
+              <HumanMarker x={480} y={202} />
             </g>
           )}
 
-          {occupancy.work2 && (
+          {isRoomOccupied("work2") && (
             <g>
-              {/* Person sitting at desk 1 */}
-              <circle cx="560" cy="144" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
-              <path d="M 554,150 Q 560,155 566,150" className="stroke-power-on fill-none" strokeWidth="1.2" />
-              {/* Person sitting at desk 4 */}
-              <circle cx="730" cy="196" r="3.5" className="fill-canvas stroke-power-on" strokeWidth="1.2" />
-              <path d="M 724,202 Q 730,207 736,202" className="stroke-power-on fill-none" strokeWidth="1.2" />
+              <HumanMarker x={560} y={150} />
+              <HumanMarker x={730} y={202} />
             </g>
           )}
 
           {/* 9. Interactive Devices (15 total: 6 fans, 9 lights - matching visual spec) */}
           {/* --- DRAWING ROOM DEVICES (2 Fans, 3 Lights) --- */}
-          <DeviceMarker device={getDevice("drawing-fan-1")} x={150} y={100} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("drawing-fan-2")} x={150} y={240} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("drawing-light-1")} x={90} y={100} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("drawing-light-2")} x={210} y={100} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("drawing-light-3")} x={150} y={300} onToggle={onToggleDevice} />
+          <DeviceMarker device={getDevice("drawing-fan-1")} x={150} y={100} />
+          <DeviceMarker device={getDevice("drawing-fan-2")} x={150} y={240} />
+          <DeviceMarker device={getDevice("drawing-light-1")} x={90} y={100} />
+          <DeviceMarker device={getDevice("drawing-light-2")} x={210} y={100} />
+          <DeviceMarker device={getDevice("drawing-light-3")} x={150} y={300} />
 
           {/* --- WORK ROOM 1 DEVICES (2 Fans, 3 Lights) --- */}
-          <DeviceMarker device={getDevice("work1-fan-1")} x={395} y={100} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("work1-fan-2")} x={395} y={220} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("work1-light-1")} x={330} y={100} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("work1-light-2")} x={460} y={100} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("work1-light-3")} x={395} y={300} onToggle={onToggleDevice} />
+          <DeviceMarker device={getDevice("work1-fan-1")} x={395} y={100} />
+          <DeviceMarker device={getDevice("work1-fan-2")} x={395} y={220} />
+          <DeviceMarker device={getDevice("work1-light-1")} x={330} y={100} />
+          <DeviceMarker device={getDevice("work1-light-2")} x={460} y={100} />
+          <DeviceMarker device={getDevice("work1-light-3")} x={395} y={300} />
 
           {/* --- WORK ROOM 2 DEVICES (2 Fans, 3 Lights) --- */}
-          <DeviceMarker device={getDevice("work2-fan-1")} x={645} y={100} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("work2-fan-2")} x={645} y={220} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("work2-light-1")} x={580} y={100} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("work2-light-2")} x={710} y={100} onToggle={onToggleDevice} />
-          <DeviceMarker device={getDevice("work2-light-3")} x={645} y={300} onToggle={onToggleDevice} />
+          <DeviceMarker device={getDevice("work2-fan-1")} x={645} y={100} />
+          <DeviceMarker device={getDevice("work2-fan-2")} x={645} y={220} />
+          <DeviceMarker device={getDevice("work2-light-1")} x={580} y={100} />
+          <DeviceMarker device={getDevice("work2-light-2")} x={710} y={100} />
+          <DeviceMarker device={getDevice("work2-light-3")} x={645} y={300} />
         </svg>
       </div>
     </div>
