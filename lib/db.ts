@@ -10,23 +10,23 @@ interface DbState {
 const INITIAL_DEVICES: Device[] = [
   // Drawing Room (drawing)
   { id: "drawing-fan-1", type: "fan", room: "drawing", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "drawing-fan-2", type: "fan", room: "drawing", label: "Fan 2", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "drawing-fan-2", type: "fan", room: "drawing", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
   { id: "drawing-light-1", type: "light", room: "drawing", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "drawing-light-2", type: "light", room: "drawing", label: "Light 2", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "drawing-light-3", type: "light", room: "drawing", label: "Light 3", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "drawing-light-3", type: "light", room: "drawing", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
 
   // Work Room 1 (work1)
   { id: "work1-fan-1", type: "fan", room: "work1", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "work1-fan-2", type: "fan", room: "work1", label: "Fan 2", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "work1-fan-2", type: "fan", room: "work1", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
   { id: "work1-light-1", type: "light", room: "work1", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "work1-light-2", type: "light", room: "work1", label: "Light 2", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work1-light-3", type: "light", room: "work1", label: "Light 3", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work1-light-3", type: "light", room: "work1", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
 
   // Work Room 2 (work2)
   { id: "work2-fan-1", type: "fan", room: "work2", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "work2-fan-2", type: "fan", room: "work2", label: "Fan 2", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "work2-fan-2", type: "fan", room: "work2", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
   { id: "work2-light-1", type: "light", room: "work2", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work2-light-2", type: "light", room: "work2", label: "Light 2", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work2-light-2", type: "light", room: "work2", label: "Light 2", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "work2-light-3", type: "light", room: "work2", label: "Light 3", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
 ];
 

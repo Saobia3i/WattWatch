@@ -20,7 +20,10 @@ function HumanMarker({ x, y }: { x: number; y: number }) {
 }
 
 export default function OfficeBlueprint({ devices, occupancy }: OfficeBlueprintProps) {
-  const isRoomOccupied = (room: "drawing" | "work1" | "work2") => occupancy[room] !== false;
+  const isRoomOccupied = (room: "drawing" | "work1" | "work2") => {
+    const hasActiveDevice = devices.some((device) => device.room === room && device.status === "on");
+    return occupancy[room] !== false || hasActiveDevice;
+  };
 
   // Find device status helper
   const getDevice = (id: string) => {
