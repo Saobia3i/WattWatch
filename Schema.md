@@ -80,3 +80,26 @@ SET
   END,
   last_motion_at = NOW()
 WHERE room_id = 'target_room';
+```
+*Safety Net:* Run a Cron job at 2:00 AM daily to reset `enter_trigger_count` and `exit_trigger_count` to `0` to prevent integer overflow and permanent drift.
+
+### 2. Calculating kWh for the `!usage` Command
+The Discord bot queries the `device_telemetry` table to calculate energy used today:
+```sql
+-- Calculates total Watt-hours, then divides by 1000 for kWh
+SELECT 
+  SUM(power_draw_watts * EXTRACT(EPOCH FROM (LEAD(recorded_at) OVER(PARTITION BY device_id ORDER BY recorded_at) - recorded_at)) / 3600) / 1000 as total_kwh
+FROM device_telemetry
+WHERE recorded_at >= CURRENT_DATE AND is_on = true;
+```
+
+### 3. Triggering the "> 2 Hours" Alert
+The backend runs a check every 5 minutes:
+```sql
+SELECT d.name, r.name as room_name 
+FROM devices d
+JOIN rooms r ON d.room_id = r.id
+WHERE d.is_on = true 
+  AND d.last_changed < NOW() - INTERVAL '2 hours';
+```
+If this query returns results, the backend inserts a row into the `alerts` table and fires a Discord Webhook.
