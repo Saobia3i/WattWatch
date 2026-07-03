@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import time
+import random
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
@@ -14,6 +15,37 @@ ROOM_NAMES = {
 }
 
 EMPTY_ROOM_ALERT_DELAY_SECONDS = 15 * 60
+MAX_OCCUPANTS_PER_ROOM = 4
+
+def next_occupancy_delay(occupant_count):
+    return random.uniform(6 * 60, 12 * 60) if occupant_count > 0 else random.uniform(3 * 60, 7 * 60)
+
+def next_device_telemetry_delay():
+    return random.uniform(4 * 60, 9 * 60)
+
+def clamp_occupant_count(value):
+    return max(0, min(MAX_OCCUPANTS_PER_ROOM, int(round(value))))
+
+def to_occupant_count(value):
+    if isinstance(value, bool):
+        return 1 if value else 0
+    if isinstance(value, (int, float)):
+        return clamp_occupant_count(value)
+    return 0
+
+def next_occupant_count(current_count):
+    current = clamp_occupant_count(current_count)
+    if current == 0:
+        return 1
+    if current == MAX_OCCUPANTS_PER_ROOM:
+        return MAX_OCCUPANTS_PER_ROOM - 1
+    return clamp_occupant_count(current + (1 if random.random() > 0.45 else -1))
+
+def is_optional_device(device):
+    return not (
+        (device.get("type") == "fan" and device.get("label") == "Fan 1") or
+        (device.get("type") == "light" and device.get("label") == "Light 1")
+    )
 
 def probe_base_url():
     """Probe ports 3000 to 3005 dynamically to find where Next.js is running"""
@@ -51,6 +83,7 @@ def main():
     base_url = probe_base_url()
     simulate_url = f"{base_url}/api/simulate"
     alerts_url = f"{base_url}/api/alerts"
+    devices_url = f"{base_url}/api/devices"
 
     print("=" * 60)
     print("      WATTWATCH — OFFICE HARDWARE SIMULATOR THREAD      ")
@@ -60,7 +93,7 @@ def main():
 
     # Initial state
     today_kwh = 4.85
-    occupancy_states = {r: True for r in ROOMS}
+    occupancy_states = {"drawing": 1, "work1": 3, "work2": 2}
     
     # Track when a room became empty (vacant)
     # vacant_since[room] stores unix timestamp if empty, else None
@@ -68,10 +101,39 @@ def main():
     
     # Avoid duplicate alerts firing in a row
     triggered_vacant_alerts = {r: False for r in ROOMS}
+    next_occupancy_transition_at = {
+        r: time.time() + next_occupancy_delay(occupancy_states[r])
+        for r in ROOMS
+    }
+    next_device_telemetry_at = {
+        r: time.time() + next_device_telemetry_delay()
+        for r in ROOMS
+    }
 
     while True:
-        # 1. Sync stable occupancy status to server. This script does not invent
-        # random human movement; occupancy changes should come from real input.
+        now_ts = time.time()
+
+        # 1. Slow office occupancy simulation: minutes-scale, never twitchy.
+        for r in ROOMS:
+            if now_ts < next_occupancy_transition_at[r]:
+                continue
+
+            previous_count = occupancy_states[r]
+            occupancy_states[r] = next_occupant_count(previous_count)
+            next_occupancy_transition_at[r] = now_ts + next_occupancy_delay(occupancy_states[r])
+
+            if previous_count > 0 and occupancy_states[r] == 0:
+                print(f"  >>> [Simulator] People left {ROOM_NAMES[r]}. Starting 15-minute countdown.")
+                vacant_since[r] = now_ts
+                triggered_vacant_alerts[r] = False
+            elif previous_count == 0 and occupancy_states[r] > 0:
+                print(f"  >>> [Simulator] People entered {ROOM_NAMES[r]}. Countdown reset.")
+                vacant_since[r] = None
+                triggered_vacant_alerts[r] = False
+            else:
+                print(f"  >>> [Simulator] {ROOM_NAMES[r]} people count -> {occupancy_states[r]}")
+
+        # 2. Sync occupancy status to server.
         payload = {
             "occupancy": occupancy_states,
             "todayKwh": round(today_kwh, 5)
@@ -85,14 +147,37 @@ def main():
             
         devices = server_state.get("devices", [])
         current_occupancy = server_state.get("occupancy", occupancy_states)
+
+        # 3. Slow optional device telemetry. Baseline Fan 1 / Light 1 are left stable.
+        for r in ROOMS:
+            if time.time() < next_device_telemetry_at[r]:
+                continue
+            next_device_telemetry_at[r] = time.time() + next_device_telemetry_delay()
+
+            optional_devices = [
+                d for d in devices
+                if d.get("room") == r and is_optional_device(d)
+            ]
+            if not optional_devices:
+                continue
+
+            device = random.choice(optional_devices)
+            next_status = "off" if device.get("status") == "on" else "on"
+            make_request(
+                devices_url,
+                {"id": device.get("id"), "status": next_status},
+                method="POST"
+            )
+            print(f"  >>> [Simulator] {ROOM_NAMES[r]} {device.get('label')} telemetry -> {next_status.upper()}")
         
         # Sync local dictionary with server state
         for r in ROOMS:
             if r in current_occupancy:
                 # If server state changed (e.g. overridden by toggles), capture transition
-                if occupancy_states[r] != current_occupancy[r]:
-                    occupancy_states[r] = current_occupancy[r]
-                    if not occupancy_states[r]:
+                next_count = to_occupant_count(current_occupancy[r])
+                if occupancy_states[r] != next_count:
+                    occupancy_states[r] = next_count
+                    if occupancy_states[r] == 0:
                         vacant_since[r] = time.time()
                         triggered_vacant_alerts[r] = False
                     else:
@@ -101,7 +186,7 @@ def main():
 
         print(f"[{datetime.now().strftime('%H:%M:%S')}] Occupancy Status:")
         for r in ROOMS:
-            status_text = "OCCUPIED" if occupancy_states[r] else "VACANT"
+            status_text = f"{occupancy_states[r]} HUMAN(S)" if occupancy_states[r] > 0 else "VACANT"
             print(f"  - {ROOM_NAMES[r]}: {status_text}")
 
         # 3. Check Rules & Trigger Alerts
@@ -112,7 +197,7 @@ def main():
         SIMULATED_15_MINUTES = EMPTY_ROOM_ALERT_DELAY_SECONDS
         
         for r in ROOMS:
-            room_vacant = not occupancy_states.get(r, False)
+            room_vacant = occupancy_states.get(r, 0) <= 0
             if room_vacant:
                 room_devices = [d for d in devices if d.get("room") == r]
                 active_devices = [d for d in room_devices if d.get("status") == "on"]
