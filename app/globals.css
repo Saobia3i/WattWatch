@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+:root {
+  --canvas: #F6F4EF;
+  --ink: #1C1E1B;
+  --ink-muted: #6B6D64;
+  --line: #D9D5C8;
+  --power-on: #F0A63C;
+  --power-off: #3E6D5E;
+  --alert: #C4432A;
+  --accent-line: #2F5233;
+
+  /* Theme mappings */
+  --background: var(--canvas);
+  --foreground: var(--ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #12130F;
+    --ink: #F6F4EF;
+    --ink-muted: #9E9F99;
+    --line: #2C2D27;
+    --power-on: #F0A63C;
+    --power-off: #4e8271;
+    --alert: #E0563C;
+    --accent-line: #3D6B42;
+
+    --background: var(--canvas);
+    --foreground: var(--ink);
+  }
+}
+
+@theme {
+  --font-sans: var(--font-inter), sans-serif;
+  --font-display: var(--font-space-grotesk), sans-serif;
+  --font-mono: var(--font-jetbrains-mono), monospace;
+
+  /* Custom Color Tokens */
+  --color-canvas: var(--canvas);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-power-on: var(--power-on);
+  --color-power-off: var(--power-off);
+  --color-alert: var(--alert);
+  --color-accent-line: var(--accent-line);
+}
+
+/* Technical utility styles */
+@layer base {
+  body {
+    background-color: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+  }
+}
+
