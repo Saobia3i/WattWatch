@@ -96,7 +96,6 @@ export function broadcast(type: "device_update" | "alert" | "usage_update" | "oc
   const data = JSON.stringify({ type, payload });
   const chunk = `data: ${data}\n\n`;
   
-  // Clean up failed writers to prevent memory leaks
   const activeClients: SseClient[] = [];
   
   clients.forEach((client) => {
@@ -110,4 +109,104 @@ export function broadcast(type: "device_update" | "alert" | "usage_update" | "oc
 
   clients.length = 0;
   clients.push(...activeClients);
+}
+
+// Global server-side fallback simulation to ensure activity even if Python is not running
+let isSimulating = false;
+
+export function startServerSimulator() {
+  if (isSimulating) return;
+  isSimulating = true;
+  console.log("[Server Simulator] Starting fallback activity generator...");
+
+  const vacantSince: Record<string, number | null> = { drawing: null, work1: null, work2: null };
+  const alertsSent: Record<string, boolean> = { drawing: false, work1: false, work2: false };
+
+  setInterval(() => {
+    // 1. Randomly toggle occupancy status (Drawing, Work 1, Work 2)
+    const rooms = ["drawing", "work1", "work2"];
+    rooms.forEach((r) => {
+      // 10% chance to toggle occupancy status in each tick
+      if (Math.random() < 0.10) {
+        const wasOccupied = db.occupancy[r];
+        db.occupancy[r] = !db.occupancy[r];
+
+        if (wasOccupied && !db.occupancy[r]) {
+          vacantSince[r] = Date.now();
+          alertsSent[r] = false;
+        } else if (!wasOccupied && db.occupancy[r]) {
+          vacantSince[r] = null;
+          alertsSent[r] = false;
+        }
+      }
+    });
+
+    // 2. Randomly toggle devices (simulate office activity)
+    if (Math.random() < 0.20) {
+      const randomIndex = Math.floor(Math.random() * db.devices.length);
+      const dev = db.devices[randomIndex];
+      dev.status = dev.status === "on" ? "off" : "on";
+      dev.lastChanged = new Date().toISOString();
+      broadcast("device_update", dev);
+    }
+
+    // 3. Accumulate simulated kWh
+    let totalWatts = 0;
+    const perRoomWatts = { drawing: 0, work1: 0, work2: 0 };
+    db.devices.forEach((d) => {
+      if (d.status === "on") {
+        totalWatts += d.wattage;
+        perRoomWatts[d.room] += d.wattage;
+      }
+    });
+
+    // Add kWh consumption (representing 3 seconds tick duration)
+    const increment = ((totalWatts || 120) * 3) / (3600 * 1000);
+    db.todayKwh += increment;
+    
+    broadcast("usage_update", {
+      totalWattsNow: totalWatts,
+      todayKwh: db.todayKwh,
+      perRoom: perRoomWatts,
+    });
+
+    // 4. Check 15-minute vacant rules (simulated as 15 seconds)
+    const now = Date.now();
+    rooms.forEach((r) => {
+      const roomVacant = !db.occupancy[r];
+      if (roomVacant) {
+        const activeDevs = db.devices.filter((d) => d.room === r && d.status === "on");
+        if (activeDevs.length > 0) {
+          if (!vacantSince[r]) {
+            vacantSince[r] = now;
+          }
+          const elapsedSec = (now - (vacantSince[r] || now)) / 1000;
+          if (elapsedSec >= 15 && !alertsSent[r]) {
+            const devLabels = activeDevs.map((d) => d.label).join(", ");
+            const newAlert: Alert = {
+              id: `alert-vacant-${r}-${now}`,
+              severity: "warning",
+              message: `Electricity Waste Alert: ${r.toUpperCase()} is unoccupied, but [${devLabels}] are still ON! Turn off room electricity.`,
+              room: r,
+              timestamp: new Date().toISOString(),
+            };
+            db.alerts.unshift(newAlert);
+            broadcast("alert", newAlert);
+            alertsSent[r] = true;
+          }
+        } else {
+          vacantSince[r] = null;
+          alertsSent[r] = false;
+        }
+      }
+    });
+
+    // 5. Broadcast occupancy changes to all clients
+    broadcast("occupancy_update", db.occupancy);
+  }, 3000);
+}
+
+// Auto-start simulator in development mode
+if (process.env.NODE_ENV !== "production") {
+  startServerSimulator();
 }
