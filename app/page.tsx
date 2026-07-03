@@ -11,7 +11,7 @@ import StatusDot from "../components/ui/StatusDot";
 import { formatWatts } from "../lib/format";
 
 export default function Home() {
-  const { devices, alerts, usage, connectionStatus, toggleDevice, clearAlert } = useLiveOffice();
+  const { devices, alerts, usage, occupancy, connectionStatus, toggleDevice, clearAlert } = useLiveOffice();
   const [expandedRoom, setExpandedRoom] = useState<string | null>("drawing");
 
   const rooms = [
@@ -49,7 +49,7 @@ export default function Home() {
               <span className="font-display text-[10px] font-bold text-ink-muted uppercase tracking-wider">
                 Interactive Floor Plan Blueprint
               </span>
-              <OfficeBlueprint devices={devices} onToggleDevice={toggleDevice} />
+              <OfficeBlueprint devices={devices} occupancy={occupancy} onToggleDevice={toggleDevice} />
             </div>
           </div>
 
@@ -111,9 +111,11 @@ export default function Home() {
                   {isExpanded && (
                     <div className="p-3 bg-canvas/10 border-t border-line/60 flex flex-col gap-3 transition-all duration-300">
                       {/* Technical Room Stats */}
-                      <div className="grid grid-cols-2 gap-2 text-[9px] font-mono text-ink-muted border-b border-line/40 pb-2 mb-1">
-                        <span>OCCUPANCY: {activeCount > 1 ? "OCCUPIED" : "VACANT"}</span>
-                        <span className="text-right">PEAK_CAPACITY: 165W</span>
+                      <div className="grid grid-cols-2 gap-2 text-[9px] font-mono border-b border-line/40 pb-2 mb-1">
+                        <span className={occupancy[room.key] ? "text-power-on font-bold" : "text-ink-muted"}>
+                          OCCUPANCY: {occupancy[room.key] ? "OCCUPIED" : "VACANT"}
+                        </span>
+                        <span className="text-right text-ink-muted">PEAK_CAPACITY: 165W</span>
                       </div>
 
                       {/* Device List for Room */}

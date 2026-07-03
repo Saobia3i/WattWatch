@@ -6,10 +6,11 @@ import { Device } from "../../lib/api-client";
 
 type OfficeBlueprintProps = {
   devices: Device[];
+  occupancy: Record<string, boolean>;
   onToggleDevice: (id: string) => void;
 };
 
-export default function OfficeBlueprint({ devices, onToggleDevice }: OfficeBlueprintProps) {
+export default function OfficeBlueprint({ devices, occupancy, onToggleDevice }: OfficeBlueprintProps) {
   // Find device status helper
   const getDevice = (id: string) => {
     return devices.find((d) => d.id === id) || {
@@ -221,6 +222,15 @@ export default function OfficeBlueprint({ devices, onToggleDevice }: OfficeBluep
           <text x="150" y="182" textAnchor="middle" className="font-mono text-[7px] fill-ink-muted tracking-wider">
             WAITING AREA
           </text>
+          {occupancy.drawing ? (
+            <text x="150" y="195" textAnchor="middle" className="font-mono text-[7px] font-bold fill-power-on tracking-wider">
+              ● OCCUPIED
+            </text>
+          ) : (
+            <text x="150" y="195" textAnchor="middle" className="font-mono text-[7px] fill-ink-muted/80 tracking-wider">
+              ○ VACANT
+            </text>
+          )}
 
           {/* Work Room 1 Label */}
           <text
@@ -234,6 +244,15 @@ export default function OfficeBlueprint({ devices, onToggleDevice }: OfficeBluep
           <text x="395" y="182" textAnchor="middle" className="font-mono text-[7px] fill-ink-muted tracking-wider">
             EMPLOYEES
           </text>
+          {occupancy.work1 ? (
+            <text x="395" y="195" textAnchor="middle" className="font-mono text-[7px] font-bold fill-power-on tracking-wider">
+              ● OCCUPIED
+            </text>
+          ) : (
+            <text x="395" y="195" textAnchor="middle" className="font-mono text-[7px] fill-ink-muted/80 tracking-wider">
+              ○ VACANT
+            </text>
+          )}
 
           {/* Work Room 2 Label */}
           <text
@@ -247,6 +266,15 @@ export default function OfficeBlueprint({ devices, onToggleDevice }: OfficeBluep
           <text x="645" y="182" textAnchor="middle" className="font-mono text-[7px] fill-ink-muted tracking-wider">
             EMPLOYEES
           </text>
+          {occupancy.work2 ? (
+            <text x="645" y="195" textAnchor="middle" className="font-mono text-[7px] font-bold fill-power-on tracking-wider">
+              ● OCCUPIED
+            </text>
+          ) : (
+            <text x="645" y="195" textAnchor="middle" className="font-mono text-[7px] fill-ink-muted/80 tracking-wider">
+              ○ VACANT
+            </text>
+          )}
 
           {/* 9. Interactive Devices (15 total: 6 fans, 9 lights - matching visual spec) */}
           {/* --- DRAWING ROOM DEVICES (2 Fans, 3 Lights) --- */}
