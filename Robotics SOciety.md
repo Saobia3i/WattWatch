@@ -1,52 +1,79 @@
-# 💡 EcoOffice: The Event-Driven Digital Twin
+# 🏢 OfficeTwin: Real-Time IoT Digital Twin & Monitoring System
 
-## 1. 📝 Problem Statement
-Our boss, a "tech enthusiast," noticed that the office electricity bill is climbing because employees constantly leave lights and fans on after hours. The office operates entirely on Discord, and the boss wants a centralized, real-time monitoring system to track the state and power consumption of all electrical devices across 3 rooms (Drawing Room, Work Room 1, Work Room 2). 
-
-The challenge is to build a unified system that provides a **Live Web Dashboard** for visual monitoring and a **Discord Bot** for quick, conversational queries, both sharing a single source of truth. 
-
-*(**Note to Judges:** The problem statement mentions "15 devices total" based on the math of 3 rooms × 5 devices, but later text repeatedly mentions "18 devices". To solve this discrepancy elegantly, our system is **100% Config-Driven**. The backend reads from an `office_config.json` file, meaning our architecture can instantly scale to simulate 15, 18, or 500 devices without changing a single line of core logic.)*
+**Team:** [Your Team Name]  
+**Hackathon:** [Hackathon Name] - Preliminary Round  
+**Track:** IoT & Smart Office Automation  
 
 ---
 
-## 2. 🚀 Proposed Solution
-We designed an **Event-Driven Digital Twin** architecture. Instead of using inefficient polling (where the frontend constantly asks the server for updates), we use a Pub/Sub model tied directly to our database.
+## 📖 1. Problem Statement
+Our boss, a tech-enthusiast, noticed a recurring issue: office lights and fans are frequently left running after hours, driving up electricity costs and wasting energy. 
 
-*   **Single Source of Truth:** PostgreSQL acts as the central brain. Both the Web Dashboard and Discord Bot read from and write to the exact same database.
-*   **Config-Driven Simulation:** A background simulator reads the office layout from a JSON config and mimics human behavior (e.g., turning on lights at 9 AM, turning off fans when "virtual temperature" drops).
-*   **Real-Time WebSockets:** When the simulator updates the database, the backend instantly pushes the state change via WebSockets to the Next.js frontend.
-*   **AI-Powered Bot:** The Discord bot doesn't just dump raw JSON. It passes the database query results to an LLM (via Groq) to generate friendly, humanized, and sassy responses tailored to the boss's personality.
-*   **Proactive Alerts:** A background worker monitors the database for anomalies (e.g., devices left on past 5 PM) and triggers Discord Webhooks to send instant visual alerts to the team's Discord channel.
+The challenge is to build a **live monitoring system** for an office consisting of 3 rooms (Drawing Room, Work Room 1, Work Room 2) to track device states and power consumption. The system must provide visibility through two distinct interfaces:
+1. A **Real-Time Web Dashboard** (featuring live metrics and visual alerts).
+2. A **Discord Bot** (for quick, conversational, on-demand status checks).
 
----
+**Core Constraint:** Both interfaces must read from a **single source of truth** (a shared backend) without relying on physical hardware (data must be dynamically simulated).
 
-## 3. 🛠️ Tech Stack
-*   **Backend & API:** Python, FastAPI, WebSockets, SQLAlchemy (Async)
-*   **Database:** PostgreSQL (Using native `LISTEN/NOTIFY` for real-time event triggering)
-*   **Frontend (Dashboard):** Next.js (React), Tailwind CSS, Framer Motion (for animations), SVG (for the interactive 2D floorplan)
-*   **Discord Bot:** `discord.py`, Groq API (Llama-3 for ultra-fast, free LLM inference)
-*   **DevOps & Deployment:** Docker, Docker Compose
-*   **Diagrams:** Excalidraw (System Architecture), Wokwi (Hardware Schematic)
+> **📝 A Note to the Judges on Device Count:** 
+> The problem statement mentions "18 devices" in the text, but the mathematical breakdown of the rooms (3 rooms × 5 devices each) equals **15 devices**. To handle this elegantly, our system is **100% Config-Driven**. By simply updating the `office_config.json` file, our backend and simulator instantly scale to support 15, 18, or 500 devices without requiring code rewrites.
 
 ---
 
-## 4. 🔄 Workflow & Data Flow
+## 💡 2. Proposed Solution
+Instead of a traditional polling-based web app, we built an **Event-Driven Digital Twin** architecture. 
 
-1.  **The Simulator (The Virtual Office):** 
-    *   Runs as an isolated Docker container.
-    *   Reads `office_config.json` to determine how many rooms and devices exist.
-    *   Every few seconds, it calculates state changes based on time-of-day and random probability.
-    *   It updates the PostgreSQL `devices` table and fires a `NOTIFY` event.
-2.  **The Backend (The Event Router):**
-    *   Listens to the PostgreSQL `NOTIFY` channel.
-    *   Upon receiving an event, it broadcasts the new device state over a WebSocket connection to all connected Web Dashboard clients.
-3.  **The Web Dashboard (The Visual Twin):**
-    *   Maintains a persistent WebSocket connection.
-    *   Receives live updates and instantly reflects them on the UI (e.g., SVG lights glow, fan icons spin using CSS animations).
-    *   Calculates live wattage and triggers local UI alerts.
-4.  **The Discord Bot (The Remote Control):**
-    *   Listens for commands (`!status`, `!room`, `!usage`).
-    *   Queries the PostgreSQL database for the exact current state.
-    *   Formats the data into a prompt and sends it to the Groq LLM API.
-    *   Returns the humanized response to the Discord channel.
-    *   *Bonus:* A cron-job inside the bot checks for "after-hours" anomalies and pushes proactive alerts via Discord Webhooks.
+*   **The Simulator (Virtual Sensors):** A Python-based async script simulates human behavior (e.g., lights turn on at 9 AM, fans turn on if virtual room temperature > 24°C). It pushes state changes directly to the database.
+*   **Single Source of Truth (PostgreSQL):** We use PostgreSQL (via Supabase) as the central brain. It stores the device state and utilizes native Realtime WebSockets to instantly broadcast changes to the frontend.
+*   **The Web Dashboard:** A sleek Next.js application featuring a **2D Interactive SVG Map**. When the simulator turns on a light, the SVG literally glows via CSS filters. When a fan turns on, CSS keyframes animate the blades.
+*   **The AI Discord Bot:** Powered by an LLM (via Groq API for ultra-low latency), the bot doesn't just dump raw JSON. It reads the database and generates friendly, humanized responses (e.g., *"We've burned through 4.2 kWh today! Work Room 1 is the main culprit right now."*). It also proactively pushes alerts to Discord if devices are left on past 5 PM.
+*   **Hardware Schematic:** We designed a representative physical circuit in **Wokwi** using an ESP32, ACS712 Current Sensors, and Relays to prove how this data would be ingested in a real-world scenario.
+
+---
+
+## 🛠️ 3. Tech Stack
+
+| Layer | Technology | Purpose |
+| :--- | :--- | :--- |
+| **Database & Realtime** | **PostgreSQL (Supabase)** | Single source of truth + native WebSocket broadcasting. |
+| **Backend API** | **Python (FastAPI)** | Handles complex logic, LLM routing, and REST endpoints. |
+| **Simulator** | **Python (Asyncio)** | Generates dynamic, time-based dummy data for the devices. |
+| **Web Dashboard** | **Next.js, React, Tailwind** | UI framework with glassmorphism design and real-time subscriptions. |
+| **Animations** | **Framer Motion & SVG** | Powers the interactive 2D office map (glowing lights, spinning fans). |
+| **Discord Bot** | **`discord.py`** | Listens for commands and triggers proactive webhook alerts. |
+| **AI / LLM** | **Groq API (Llama-3)** | Generates fast, conversational, humanized bot responses. |
+| **Hardware Sim** | **Wokwi** | Simulates the ESP32, Relays, and Current Sensors. |
+| **Diagramming** | **Excalidraw** | Used for the High-Level System Architecture diagram. |
+
+---
+
+## ⚙️ 4. Workflow & Installation Guide
+
+Follow these steps to run the entire ecosystem locally on your machine.
+
+### Prerequisites
+*   Python 3.10+
+*   Node.js 18+
+*   A free [Supabase](https://supabase.com/) account (for Postgres & WebSockets)
+*   A free [Groq](https://console.groq.com/) API Key (for LLM)
+*   A Discord Bot Token
+
+### Step 1: Database Setup (Supabase)
+1. Create a new project in Supabase.
+2. Go to the SQL Editor and run the `schema.sql` file located in the `/database` folder to create the `devices` and `alerts` tables.
+3. Enable **Supabase Realtime** on the `devices` table in the Database Replication settings.
+
+### Step 2: Environment Variables
+Create a `.env` file in the root directory and populate it with your credentials:
+```env
+# Supabase
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+
+# Discord
+DISCORD_BOT_TOKEN=your_discord_token
+DISCORD_ALERT_CHANNEL_ID=your_channel_id
+
+# AI / LLM
+GROQ_API_KEY=your_groq_api_key
