@@ -11,7 +11,7 @@ import StatusDot from "../components/ui/StatusDot";
 import { formatWatts } from "../lib/format";
 
 export default function Home() {
-  const { devices, alerts, usage, occupancy, connectionStatus, toggleDevice, clearAlert } = useLiveOffice();
+  const { devices, alerts, usage, occupancy, connectionStatus, setDeviceStatus, clearAlert } = useLiveOffice();
   const [expandedRoom, setExpandedRoom] = useState<string | null>("drawing");
 
   const rooms = [
@@ -47,9 +47,9 @@ export default function Home() {
           <div className="hidden lg:block lg:col-span-8 h-full">
             <div className="flex flex-col gap-2 h-full">
               <span className="font-display text-[10px] font-bold text-ink-muted uppercase tracking-wider">
-                Interactive Floor Plan Blueprint
+                Live Floor Plan Blueprint
               </span>
-              <OfficeBlueprint devices={devices} occupancy={occupancy} onToggleDevice={toggleDevice} />
+              <OfficeBlueprint devices={devices} occupancy={occupancy} />
             </div>
           </div>
 
@@ -80,6 +80,7 @@ export default function Home() {
               const roomDevices = devices.filter((d) => d.room === room.key);
               const roomActiveWatts = usage.perRoom[room.key] || 0;
               const activeCount = roomDevices.filter((d) => d.status === "on").length;
+              const roomHasHumans = occupancy[room.key] || activeCount > 0;
 
               return (
                 <div key={room.key} className="border border-line rounded overflow-hidden">
@@ -112,8 +113,8 @@ export default function Home() {
                     <div className="p-3 bg-canvas/10 border-t border-line/60 flex flex-col gap-3 transition-all duration-300">
                       {/* Technical Room Stats */}
                       <div className="grid grid-cols-2 gap-2 text-[9px] font-mono border-b border-line/40 pb-2 mb-1">
-                        <span className={occupancy[room.key] ? "text-power-on font-bold" : "text-ink-muted"}>
-                          OCCUPANCY: {occupancy[room.key] ? "OCCUPIED" : "VACANT"}
+                        <span className={roomHasHumans ? "text-power-on font-bold" : "text-ink-muted"}>
+                          OCCUPANCY: {roomHasHumans ? "OCCUPIED" : "VACANT"}
                         </span>
                         <span className="text-right text-ink-muted">PEAK_CAPACITY: 165W</span>
                       </div>
@@ -134,23 +135,37 @@ export default function Home() {
                               }`}
                             >
                               <div className="flex items-center gap-2">
-                                <StatusDot status={isOn ? "on" : "off"} size="sm" />
+                                <StatusDot status={isOn ? "on" : "off"} size="sm" pulse={isOn} />
                                 <span className="font-sans font-bold">{device.label}</span>
                                 <span className="font-mono text-[8px] bg-line/20 px-1 rounded">
                                   {tag}
                                 </span>
                               </div>
 
-                              <button
-                                onClick={() => toggleDevice(device.id)}
-                                className={`font-mono text-[8px] font-bold px-2 py-0.5 rounded border transition-colors ${
-                                  isOn
-                                    ? "bg-power-on border-power-on text-canvas"
-                                    : "bg-canvas border-line text-ink-muted"
-                                }`}
-                              >
-                                {device.status.toUpperCase()}
-                              </button>
+                              <div className="grid grid-cols-2 rounded border border-line overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => setDeviceStatus(device.id, "on")}
+                                  className={`font-mono text-[8px] font-bold px-2 py-0.5 transition-colors ${
+                                    isOn
+                                      ? "bg-power-on text-canvas"
+                                      : "bg-canvas text-ink-muted hover:text-ink"
+                                  }`}
+                                >
+                                  ON
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeviceStatus(device.id, "off")}
+                                  className={`font-mono text-[8px] font-bold px-2 py-0.5 border-l border-line transition-colors ${
+                                    !isOn
+                                      ? "bg-power-off text-canvas"
+                                      : "bg-canvas text-ink-muted hover:text-ink"
+                                  }`}
+                                >
+                                  OFF
+                                </button>
+                              </div>
                             </div>
                           );
                         })}
@@ -165,7 +180,7 @@ export default function Home() {
 
         {/* Full Device Control Grid (Desktop) */}
         <div className="w-full">
-          <DeviceStatusPanel devices={devices} onToggleDevice={toggleDevice} />
+          <DeviceStatusPanel devices={devices} onSetDeviceStatus={setDeviceStatus} />
         </div>
       </main>
       

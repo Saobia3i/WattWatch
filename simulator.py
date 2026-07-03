@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import json
 import time
-import random
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
@@ -13,6 +12,8 @@ ROOM_NAMES = {
     "work1": "Work Room 1",
     "work2": "Work Room 2"
 }
+
+EMPTY_ROOM_ALERT_DELAY_SECONDS = 15 * 60
 
 def probe_base_url():
     """Probe ports 3000 to 3005 dynamically to find where Next.js is running"""
@@ -69,24 +70,8 @@ def main():
     triggered_vacant_alerts = {r: False for r in ROOMS}
 
     while True:
-        # 1. Randomly transition occupancy status for each room
-        for r in ROOMS:
-            # 30% chance to toggle occupancy status
-            if random.random() < 0.30:
-                was_occupied = occupancy_states[r]
-                occupancy_states[r] = not occupancy_states[r]
-                
-                # Print transitions to help trace timing
-                if was_occupied and not occupancy_states[r]:
-                    print(f"  >>> [Simulator] All people have left {ROOM_NAMES[r]}. Starting 15-minute countdown.")
-                    vacant_since[r] = time.time()
-                    triggered_vacant_alerts[r] = False
-                elif not was_occupied and occupancy_states[r]:
-                    print(f"  >>> [Simulator] Human entered {ROOM_NAMES[r]}. Countdown reset.")
-                    vacant_since[r] = None
-                    triggered_vacant_alerts[r] = False
-
-        # 2. Sync full occupancy status to server to trigger client updates
+        # 1. Sync stable occupancy status to server. This script does not invent
+        # random human movement; occupancy changes should come from real input.
         payload = {
             "occupancy": occupancy_states,
             "todayKwh": round(today_kwh, 5)
@@ -123,8 +108,8 @@ def main():
         now = datetime.now()
         
         # Rule A: Empty Room Warning with 15-Minute Countdown
-        # (15 seconds simulated time = 15 minutes real office time)
-        SIMULATED_15_MINUTES = 15.0  # 15 seconds
+        # (900 seconds = 15 minutes real office time)
+        SIMULATED_15_MINUTES = EMPTY_ROOM_ALERT_DELAY_SECONDS
         
         for r in ROOMS:
             room_vacant = not occupancy_states.get(r, False)
@@ -162,6 +147,9 @@ def main():
                     # No devices on, reset state
                     vacant_since[r] = None
                     triggered_vacant_alerts[r] = False
+            else:
+                vacant_since[r] = None
+                triggered_vacant_alerts[r] = False
 
         # Rule B: Devices active after office hours (outside 9 AM - 5 PM)
         current_hour = now.hour

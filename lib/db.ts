@@ -9,25 +9,25 @@ interface DbState {
 
 const INITIAL_DEVICES: Device[] = [
   // Drawing Room (drawing)
-  { id: "drawing-fan-1", type: "fan", room: "drawing", label: "Fan 1", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "drawing-fan-1", type: "fan", room: "drawing", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
   { id: "drawing-fan-2", type: "fan", room: "drawing", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "drawing-light-1", type: "light", room: "drawing", label: "Light 1", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "drawing-light-2", type: "light", room: "drawing", label: "Light 2", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "drawing-light-1", type: "light", room: "drawing", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "drawing-light-2", type: "light", room: "drawing", label: "Light 2", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "drawing-light-3", type: "light", room: "drawing", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
 
   // Work Room 1 (work1)
-  { id: "work1-fan-1", type: "fan", room: "work1", label: "Fan 1", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "work1-fan-1", type: "fan", room: "work1", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
   { id: "work1-fan-2", type: "fan", room: "work1", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "work1-light-1", type: "light", room: "work1", label: "Light 1", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work1-light-2", type: "light", room: "work1", label: "Light 2", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work1-light-1", type: "light", room: "work1", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work1-light-2", type: "light", room: "work1", label: "Light 2", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "work1-light-3", type: "light", room: "work1", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
 
   // Work Room 2 (work2)
-  { id: "work2-fan-1", type: "fan", room: "work2", label: "Fan 1", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "work2-fan-1", type: "fan", room: "work2", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
   { id: "work2-fan-2", type: "fan", room: "work2", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "work2-light-1", type: "light", room: "work2", label: "Light 1", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work2-light-1", type: "light", room: "work2", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "work2-light-2", type: "light", room: "work2", label: "Light 2", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work2-light-3", type: "light", room: "work2", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work2-light-3", type: "light", room: "work2", label: "Light 3", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
 ];
 
 const INITIAL_ALERTS: Alert[] = [
@@ -64,6 +64,11 @@ if (process.env.NODE_ENV === "production") {
 }
 
 export { db };
+
+const ROOM_KEYS = ["drawing", "work1", "work2"] as const;
+type RoomKey = (typeof ROOM_KEYS)[number];
+const EMPTY_ROOM_ALERT_DELAY_MS = 15 * 60 * 1000;
+const MAX_ALERTS = 50;
 
 // List of connected SSE clients
 type SseClient = {
@@ -111,46 +116,84 @@ export function broadcast(type: "device_update" | "alert" | "usage_update" | "oc
   clients.push(...activeClients);
 }
 
+export function dedupeAlerts(alerts: Alert[]) {
+  const seen = new Set<string>();
+  return alerts.filter((alert) => {
+    const key = alert.id || `${alert.room ?? "office"}-${alert.severity}-${alert.message}-${alert.timestamp}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+export function addAlert(alert: Alert) {
+  db.alerts = dedupeAlerts(db.alerts);
+  if (db.alerts.some((existing) => existing.id === alert.id || existing.message === alert.message)) {
+    return false;
+  }
+
+  db.alerts.unshift(alert);
+  db.alerts = dedupeAlerts(db.alerts).slice(0, MAX_ALERTS);
+  broadcast("alert", alert);
+  return true;
+}
+
+export function ensureOccupiedRoomsHaveBaselinePower(occupancy: Record<string, boolean>) {
+  ROOM_KEYS.forEach((room) => {
+    if (!occupancy[room]) return;
+
+    const roomDevices = db.devices.filter((device) => device.room === room);
+    const hasActiveDevice = roomDevices.some((device) => device.status === "on");
+    if (hasActiveDevice) return;
+
+    const baselineDevices = roomDevices.filter(
+      (device) =>
+        (device.type === "fan" && device.label === "Fan 1") ||
+        (device.type === "light" && device.label === "Light 1")
+    );
+
+    baselineDevices.forEach((device) => {
+      device.status = "on";
+      device.lastChanged = new Date().toISOString();
+      broadcast("device_update", device);
+    });
+  });
+}
+
 // Global server-side fallback simulation to ensure activity even if Python is not running
-let isSimulating = false;
+const globalRecords = global as unknown as Record<string, unknown>;
+if (process.env.NODE_ENV !== "production" && typeof globalRecords._wattWatchSimulating !== "boolean") {
+  globalRecords._wattWatchSimulating = false;
+}
+
+function getIsSimulating() {
+  return process.env.NODE_ENV === "production"
+    ? Boolean(globalRecords._wattWatchProdSimulating)
+    : Boolean(globalRecords._wattWatchSimulating);
+}
+
+function setIsSimulating(value: boolean) {
+  if (process.env.NODE_ENV === "production") {
+    globalRecords._wattWatchProdSimulating = value;
+  } else {
+    globalRecords._wattWatchSimulating = value;
+  }
+}
 
 export function startServerSimulator() {
-  if (isSimulating) return;
-  isSimulating = true;
+  if (getIsSimulating()) return;
+  setIsSimulating(true);
   console.log("[Server Simulator] Starting fallback activity generator...");
 
-  const vacantSince: Record<string, number | null> = { drawing: null, work1: null, work2: null };
-  const alertsSent: Record<string, boolean> = { drawing: false, work1: false, work2: false };
+  const vacantSince: Record<RoomKey, number | null> = { drawing: null, work1: null, work2: null };
+  const alertsSent: Record<RoomKey, boolean> = { drawing: false, work1: false, work2: false };
 
   setInterval(() => {
-    // 1. Randomly toggle occupancy status (Drawing, Work 1, Work 2)
-    const rooms = ["drawing", "work1", "work2"];
-    rooms.forEach((r) => {
-      // 10% chance to toggle occupancy status in each tick
-      if (Math.random() < 0.10) {
-        const wasOccupied = db.occupancy[r];
-        db.occupancy[r] = !db.occupancy[r];
+    const now = Date.now();
 
-        if (wasOccupied && !db.occupancy[r]) {
-          vacantSince[r] = Date.now();
-          alertsSent[r] = false;
-        } else if (!wasOccupied && db.occupancy[r]) {
-          vacantSince[r] = null;
-          alertsSent[r] = false;
-        }
-      }
-    });
-
-    // 2. Randomly toggle devices (simulate office activity)
-    if (Math.random() < 0.20) {
-      const randomIndex = Math.floor(Math.random() * db.devices.length);
-      const dev = db.devices[randomIndex];
-      dev.status = dev.status === "on" ? "off" : "on";
-      dev.lastChanged = new Date().toISOString();
-      broadcast("device_update", dev);
-    }
-
-    // 3. Accumulate simulated kWh
+    // 1. Accumulate kWh from the current stable device state.
     let totalWatts = 0;
     const perRoomWatts = { drawing: 0, work1: 0, work2: 0 };
     db.devices.forEach((d) => {
@@ -170,9 +213,8 @@ export function startServerSimulator() {
       perRoom: perRoomWatts,
     });
 
-    // 4. Check 15-minute vacant rules (simulated as 15 seconds)
-    const now = Date.now();
-    rooms.forEach((r) => {
+    // 2. Check 15-minute vacant rules. Occupancy comes from API/sensors, not random fallback.
+    ROOM_KEYS.forEach((r) => {
       const roomVacant = !db.occupancy[r];
       if (roomVacant) {
         const activeDevs = db.devices.filter((d) => d.room === r && d.status === "on");
@@ -181,28 +223,29 @@ export function startServerSimulator() {
             vacantSince[r] = now;
           }
           const elapsedSec = (now - (vacantSince[r] || now)) / 1000;
-          if (elapsedSec >= 15 && !alertsSent[r]) {
+          if (elapsedSec >= EMPTY_ROOM_ALERT_DELAY_MS / 1000 && !alertsSent[r]) {
             const devLabels = activeDevs.map((d) => d.label).join(", ");
             const newAlert: Alert = {
               id: `alert-vacant-${r}-${now}`,
               severity: "warning",
-              message: `Electricity Waste Alert: ${r.toUpperCase()} is unoccupied, but [${devLabels}] are still ON! Turn off room electricity.`,
+              message: `Electricity Waste Alert: ${r.toUpperCase()} has been unoccupied for 15 minutes, but [${devLabels}] are still ON! Turn off room electricity.`,
               room: r,
               timestamp: new Date().toISOString(),
             };
-            db.alerts.unshift(newAlert);
-            broadcast("alert", newAlert);
-            alertsSent[r] = true;
+            if (addAlert(newAlert)) {
+              alertsSent[r] = true;
+            }
           }
         } else {
           vacantSince[r] = null;
           alertsSent[r] = false;
         }
+      } else {
+        vacantSince[r] = null;
+        alertsSent[r] = false;
       }
     });
 
-    // 5. Broadcast occupancy changes to all clients
-    broadcast("occupancy_update", db.occupancy);
   }, 3000);
 }
 
