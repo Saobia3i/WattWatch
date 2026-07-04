@@ -27,7 +27,6 @@ const FALLBACK_OCCUPANTS: Occupant[] = [
 
 export default function DirectoryPanel() {
   const [occupants, setOccupants] = useState<Occupant[]>(FALLBACK_OCCUPANTS);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/occupants")
@@ -36,12 +35,10 @@ export default function DirectoryPanel() {
         if (Array.isArray(data) && data.length > 0) {
           setOccupants(data);
         }
-        setLoading(false);
       })
       .catch((e) => {
         console.error("Error fetching occupants:", e);
         setOccupants(FALLBACK_OCCUPANTS);
-        setLoading(false);
       });
   }, []);
 
@@ -59,11 +56,7 @@ export default function DirectoryPanel() {
 
       {/* Directory List */}
       <div className="flex-1 overflow-y-auto max-h-[300px] scrollbar-thin scrollbar-thumb-line pr-1">
-        {loading ? (
-          <div className="flex items-center justify-center h-28 text-center text-ink-muted text-[10px] font-mono">
-            LOADING_MEMBERS...
-          </div>
-        ) : occupants.length === 0 ? (
+        {occupants.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-28 text-center border border-dashed border-line/75 rounded bg-canvas/20">
             <span className="font-sans font-bold text-xs text-ink uppercase tracking-wide">
               No occupants listed.
