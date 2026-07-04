@@ -145,6 +145,7 @@ export function startServerSimulator() {
 
   const vacantSince: Record<RoomKey, number | null> = { drawing: null, work1: null, work2: null };
   const alertsSent: Record<RoomKey, boolean> = { drawing: false, work1: false, work2: false };
+  let lastTimeAlertTriggered: string | null = null;
   
   const initialNow = Date.now();
   const nextOccupancyTransitionAt: Record<RoomKey, number> = {
@@ -291,9 +292,78 @@ export function startServerSimulator() {
             vacantSince[r] = null;
             alertsSent[r] = false;
           }
-        } else {
-          vacantSince[r] = null;
-          alertsSent[r] = false;
+        }
+      }
+
+      // 5. Proactive after-hours alert checks (5:00 PM - 9:00 AM hourly; 3:30 PM - 5:00 PM every 5 min for testing)
+      const localTime = new Date();
+      const localHours = localTime.getHours();
+      const localMinutes = localTime.getMinutes();
+      const timeKey = `${localHours}:${localMinutes}`;
+
+      let shouldTrigger = false;
+      let timeFormatted = "";
+
+      // Testing range: 3:30 PM to 5:00 PM (15:30 to 16:59)
+      if (localHours === 15 && localMinutes >= 30) {
+        if (localMinutes % 5 === 0) {
+          shouldTrigger = true;
+          const ampm = localHours >= 12 ? 'PM' : 'AM';
+          const displayHour = localHours % 12 || 12;
+          const displayMinute = localMinutes < 10 ? `0${localMinutes}` : localMinutes;
+          timeFormatted = `${displayHour}:${displayMinute} ${ampm}`;
+        }
+      } else if (localHours === 16) {
+        if (localMinutes % 5 === 0) {
+          shouldTrigger = true;
+          const ampm = localHours >= 12 ? 'PM' : 'AM';
+          const displayHour = localHours % 12 || 12;
+          const displayMinute = localMinutes < 10 ? `0${localMinutes}` : localMinutes;
+          timeFormatted = `${displayHour}:${displayMinute} ${ampm}`;
+        }
+      }
+      // Production range: after-hours outside 9:00 AM - 5:00 PM (i.e. >= 17:00 or < 9:00)
+      else if (localHours >= 17 || localHours < 9) {
+        if (localMinutes === 0) {
+          shouldTrigger = true;
+          const ampm = localHours >= 12 ? 'PM' : 'AM';
+          const displayHour = localHours % 12 || 12;
+          timeFormatted = `${displayHour} ${ampm}`;
+        }
+      }
+
+      if (shouldTrigger && lastTimeAlertTriggered !== timeKey) {
+        lastTimeAlertTriggered = timeKey;
+        
+        for (const r of ROOM_KEYS) {
+          const roomDevices = currentDevices.filter((d) => d.room_id === r && d.is_on === 1);
+          if (roomDevices.length > 0) {
+            const fans = roomDevices.filter((d) => d.type === "fan").length;
+            const lights = roomDevices.filter((d) => d.type === "light").length;
+            
+            const partsList: string[] = [];
+            if (fans > 0) partsList.push(`${fans} fan${fans > 1 ? "s" : ""}`);
+            if (lights > 0) partsList.push(`${lights} light${lights > 1 ? "s" : ""}`);
+            const deviceDescription = partsList.join(" and ");
+            
+            const roomName = r === "drawing" ? "Drawing Room" : (r === "work1" ? "Work Room 1" : "Work Room 2");
+            const alertMsg = `⚠️ Hey! ${roomName} still has ${deviceDescription} ON and it's ${timeFormatted}. Did someone forget to leave?`;
+            const alertId = `alert-time-${r}-${now}`;
+            
+            await dbConn.run(
+              "INSERT INTO alerts (id, room_id, severity, message, is_active, triggered_at) VALUES (?, ?, 'warning', ?, 1, ?)",
+              [alertId, r, alertMsg, nowIso]
+            );
+            
+            broadcast("alert", {
+              id: alertId,
+              severity: "warning",
+              message: alertMsg,
+              room: r,
+              timestamp: nowIso,
+            });
+            console.log(`[Server Simulator] Time-of-day alert triggered: ${alertMsg}`);
+          }
         }
       }
     } catch (err) {

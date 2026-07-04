@@ -118,6 +118,7 @@ def main():
         r: time.time() + next_device_telemetry_delay()
         for r in ROOMS
     }
+    last_time_alert_triggered = None
 
     while True:
         now_ts = time.time()
@@ -245,22 +246,59 @@ def main():
                 vacant_since[r] = None
                 triggered_vacant_alerts[r] = False
 
-        # Rule B: Devices active after office hours (outside 9 AM - 5 PM)
-        current_hour = now.hour
-        is_after_hours = current_hour >= 17 or current_hour < 9
-        
-        if is_after_hours:
-            active_devices = [d for d in devices if d.get("status") == "on"]
-            for d in active_devices:
-                alert_msg = f"After-Hours Alert: {ROOM_NAMES[d.get('room')]} {d.get('label')} is left active at {now.strftime('%I:%M %p')} (outside 9AM-5PM office hours)."
-                print(f"  [ALERT TRIGGERED] {alert_msg}")
-                
-                alert_payload = {
-                    "severity": "warning",
-                    "message": alert_msg,
-                    "room": d.get("room")
-                }
-                make_request(alerts_url, alert_payload, method="POST")
+        # Rule B: Proactive after-hours consolidated check (5:00 PM - 9:00 AM hourly; 3:30 PM - 5:00 PM every 5 min for testing)
+        should_trigger = False
+        time_formatted = ""
+        time_key = f"{now.hour}:{now.minute}"
+
+        # Testing range: 3:30 PM to 5:00 PM (15:30 to 16:59)
+        if now.hour == 15 and now.minute >= 30:
+            if now.minute % 5 == 0:
+                should_trigger = True
+                ampm = 'PM' if now.hour >= 12 else 'AM'
+                display_hour = now.hour % 12 if now.hour % 12 != 0 else 12
+                display_minute = f"0{now.minute}" if now.minute < 10 else now.minute
+                time_formatted = f"{display_hour}:{display_minute} {ampm}"
+        elif now.hour == 16:
+            if now.minute % 5 == 0:
+                should_trigger = True
+                ampm = 'PM' if now.hour >= 12 else 'AM'
+                display_hour = now.hour % 12 if now.hour % 12 != 0 else 12
+                display_minute = f"0{now.minute}" if now.minute < 10 else now.minute
+                time_formatted = f"{display_hour}:{display_minute} {ampm}"
+        # Production range: after-hours outside 9:00 AM - 5:00 PM (i.e. >= 17:00 or < 9:00)
+        elif now.hour >= 17 or now.hour < 9:
+            if now.minute == 0:
+                should_trigger = True
+                ampm = 'PM' if now.hour >= 12 else 'AM'
+                display_hour = now.hour % 12 if now.hour % 12 != 0 else 12
+                time_formatted = f"{display_hour} {ampm}"
+
+        if should_trigger and last_time_alert_triggered != time_key:
+            last_time_alert_triggered = time_key
+            for r in ROOMS:
+                room_devices = [d for d in devices if d.get("room") == r]
+                active_devs = [d for d in room_devices if d.get("status") == "on"]
+                if active_devs:
+                    fans = sum(1 for d in active_devs if d.get("type") == "fan")
+                    lights = sum(1 for d in active_devs if d.get("type") == "light")
+                    
+                    parts_list = []
+                    if fans > 0:
+                        parts_list.append(f"{fans} fan{'s' if fans > 1 else ''}")
+                    if lights > 0:
+                        parts_list.append(f"{lights} light{'s' if lights > 1 else ''}")
+                    device_description = " and ".join(parts_list)
+                    
+                    alert_msg = f"⚠️ Hey! {ROOM_NAMES[r]} still has {device_description} ON and it's {time_formatted}. Did someone forget to leave?"
+                    print(f"  [ALERT TRIGGERED] {alert_msg}")
+                    
+                    alert_payload = {
+                        "severity": "warning",
+                        "message": alert_msg,
+                        "room": r
+                    }
+                    make_request(alerts_url, alert_payload, method="POST")
 
         # Rule C: Room overrun timing calculation (All devices in a room on for > 2h continuous)
         for r in ROOMS:
@@ -295,6 +333,7 @@ def main():
                             "room": r
                         }
                         make_request(alerts_url, alert_payload, method="POST")
+
 
         # 4. Increment simulated kWh cumulative consumption in background
         active_load_watts = sum([d.get("wattage", 0) for d in devices if d.get("status") == "on"])
