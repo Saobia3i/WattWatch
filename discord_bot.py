@@ -93,11 +93,11 @@ async def listen_to_sse():
         return
 
     channel_id = int(ALERT_CHANNEL_ID)
-    channel = bot.get_channel(channel_id)
-    if not channel:
-        print(f"[Bot] Alert channel with ID {channel_id} not found in cache. Waiting...")
-        await asyncio.sleep(5)
-        channel = bot.get_channel(channel_id)
+    channel = None
+    try:
+        channel = await bot.fetch_channel(channel_id)
+    except Exception as e:
+        print(f"[Bot] Could not fetch alert channel {channel_id}: {e}")
 
     if not channel:
         print(f"[Bot] Critical Error: Target alert channel {channel_id} not found.")
