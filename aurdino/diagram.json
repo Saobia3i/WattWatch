@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "author": "Okkhor Techathon Team",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "attrs": {} },
+    {
+      "type": "wokwi-pir-motion-sensor",
+      "id": "pir_outer",
+      "top": -120,
+      "left": -150,
+      "attrs": {}
+    },
+    { "type": "wokwi-pir-motion-sensor", "id": "pir_inner", "top": -120, "left": 50, "attrs": {} },
+    {
+      "type": "wokwi-led",
+      "id": "light1",
+      "top": -100,
+      "left": 250,
+      "attrs": { "color": "yellow", "label": "Light 1 (15W)" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "light2",
+      "top": -100,
+      "left": 290,
+      "attrs": { "color": "yellow", "label": "Light 2 (15W)" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "light3",
+      "top": -100,
+      "left": 330,
+      "attrs": { "color": "yellow", "label": "Light 3 (15W)" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "fan1",
+      "top": -20,
+      "left": 250,
+      "attrs": { "color": "blue", "label": "Fan 1 (60W)" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "fan2",
+      "top": -20,
+      "left": 290,
+      "attrs": { "color": "blue", "label": "Fan 2 (60W)" }
+    },
+    { "type": "wokwi-resistor", "id": "r1", "top": -40, "left": 250, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r2", "top": -40, "left": 290, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r3", "top": -40, "left": 330, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r4", "top": 40, "left": 250, "attrs": { "value": "220" } },
+    { "type": "wokwi-resistor", "id": "r5", "top": 40, "left": 290, "attrs": { "value": "220" } },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "sw1",
+      "top": 234.8,
+      "left": -73.7,
+      "attrs": { "label": "SW L1 (Pin 9)" }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "sw2",
+      "top": 234.8,
+      "left": -25.7,
+      "attrs": { "label": "SW L2 (Pin 10)" }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "sw3",
+      "top": 234.8,
+      "left": 22.3,
+      "attrs": { "label": "SW L3 (Pin 11)" }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "sw4",
+      "top": 234.8,
+      "left": 70.3,
+      "attrs": { "label": "SW F1 (Pin 12)" }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "sw5",
+      "top": 234.8,
+      "left": 195.1,
+      "attrs": { "label": "SW F2 (Pin 13)" }
+    }
+  ],
+  "connections": [
+    [ "uno:GND.1", "pir_outer:GND", "black", [ "v0" ] ],
+    [ "uno:5V", "pir_outer:VCC", "red", [ "v0" ] ],
+    [ "uno:2", "pir_outer:OUT", "green", [ "v0" ] ],
+    [ "uno:GND.1", "pir_inner:GND", "black", [ "v0" ] ],
+    [ "uno:5V", "pir_inner:VCC", "red", [ "v0" ] ],
+    [ "uno:3", "pir_inner:OUT", "green", [ "v0" ] ],
+    [ "uno:4", "light1:A", "yellow", [ "v0" ] ],
+    [ "light1:C", "r1:1", "black", [ "v0" ] ],
+    [ "r1:2", "uno:GND.2", "black", [ "v0" ] ],
+    [ "uno:5", "light2:A", "yellow", [ "v0" ] ],
+    [ "light2:C", "r2:1", "black", [ "v0" ] ],
+    [ "r2:2", "uno:GND.2", "black", [ "v0" ] ],
+    [ "uno:6", "light3:A", "yellow", [ "v0" ] ],
+    [ "light3:C", "r3:1", "black", [ "v0" ] ],
+    [ "r3:2", "uno:GND.2", "black", [ "v0" ] ],
+    [ "uno:7", "fan1:A", "blue", [ "v0" ] ],
+    [ "fan1:C", "r4:1", "black", [ "v0" ] ],
+    [ "r4:2", "uno:GND.3", "black", [ "v0" ] ],
+    [ "uno:8", "fan2:A", "blue", [ "v0" ] ],
+    [ "fan2:C", "r5:1", "black", [ "v0" ] ],
+    [ "r5:2", "uno:GND.3", "black", [ "v0" ] ],
+    [ "uno:GND.2", "sw1:2", "black", [ "v0" ] ],
+    [ "sw1:2", "sw2:2", "black", [ "v0" ] ],
+    [ "sw2:2", "sw3:2", "black", [ "v0" ] ],
+    [ "sw3:2", "sw4:2", "black", [ "v0" ] ],
+    [ "sw4:2", "sw5:2", "black", [ "v0" ] ],
+    [ "uno:9", "sw1:3", "orange", [ "v0" ] ],
+    [ "uno:10", "sw2:3", "orange", [ "v0" ] ],
+    [ "uno:11", "sw3:3", "orange", [ "v0" ] ],
+    [ "uno:12", "sw4:3", "orange", [ "v0" ] ],
+    [ "uno:13", "sw5:3", "orange", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}
