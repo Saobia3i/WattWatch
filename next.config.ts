@@ -18,6 +18,9 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
+
+  // 3. Silence Turbopack webpack custom config warning
+  turbopack: {},
 };
 
 export default nextConfig;

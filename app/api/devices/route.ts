@@ -30,9 +30,10 @@ export async function GET() {
     }));
 
     return NextResponse.json(devices);
-  } catch (error: any) {
+  } catch (error) {
     console.error("Database GET Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -75,8 +76,9 @@ export async function POST(request: NextRequest) {
     broadcast("device_update", updatedDevice);
 
     return NextResponse.json(updatedDevice);
-  } catch (error: any) {
+  } catch (error) {
     console.error("Database POST Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: errorMessage }, { status: 400 });
   }
 }
