@@ -7,23 +7,23 @@ import { Device, Alert, UsageStats, SSE_STREAM_URL } from "../lib/api-client";
 const INITIAL_DEVICES: Device[] = [
   // Drawing Room (drawing)
   { id: "drawing-fan-1", type: "fan", room: "drawing", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "drawing-fan-2", type: "fan", room: "drawing", label: "Fan 2", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "drawing-fan-2", type: "fan", room: "drawing", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
   { id: "drawing-light-1", type: "light", room: "drawing", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "drawing-light-2", type: "light", room: "drawing", label: "Light 2", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "drawing-light-3", type: "light", room: "drawing", label: "Light 3", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "drawing-light-3", type: "light", room: "drawing", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
 
   // Work Room 1 (work1)
   { id: "work1-fan-1", type: "fan", room: "work1", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "work1-fan-2", type: "fan", room: "work1", label: "Fan 2", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "work1-fan-2", type: "fan", room: "work1", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
   { id: "work1-light-1", type: "light", room: "work1", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "work1-light-2", type: "light", room: "work1", label: "Light 2", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work1-light-3", type: "light", room: "work1", label: "Light 3", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work1-light-3", type: "light", room: "work1", label: "Light 3", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
 
   // Work Room 2 (work2)
   { id: "work2-fan-1", type: "fan", room: "work2", label: "Fan 1", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
-  { id: "work2-fan-2", type: "fan", room: "work2", label: "Fan 2", status: "on", wattage: 60, lastChanged: new Date().toISOString() },
+  { id: "work2-fan-2", type: "fan", room: "work2", label: "Fan 2", status: "off", wattage: 60, lastChanged: new Date().toISOString() },
   { id: "work2-light-1", type: "light", room: "work2", label: "Light 1", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
-  { id: "work2-light-2", type: "light", room: "work2", label: "Light 2", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
+  { id: "work2-light-2", type: "light", room: "work2", label: "Light 2", status: "off", wattage: 15, lastChanged: new Date().toISOString() },
   { id: "work2-light-3", type: "light", room: "work2", label: "Light 3", status: "on", wattage: 15, lastChanged: new Date().toISOString() },
 ];
 
@@ -40,8 +40,23 @@ const INITIAL_ALERTS: Alert[] = [
 const ROOM_KEYS = ["drawing", "work1", "work2"] as const;
 type RoomKey = (typeof ROOM_KEYS)[number];
 const EMPTY_ROOM_ALERT_DELAY_MS = 15 * 60 * 1000;
+const MAX_OCCUPANTS_PER_ROOM = 4;
 
-function sameOccupancy(a: Record<string, boolean>, b: Record<string, boolean>) {
+function randomBetween(min: number, max: number) {
+  return min + Math.random() * (max - min);
+}
+
+function nextOccupancyDelay(occupantCount: number) {
+  return occupantCount > 0
+    ? randomBetween(6 * 60 * 1000, 12 * 60 * 1000)
+    : randomBetween(3 * 60 * 1000, 7 * 60 * 1000);
+}
+
+function nextDeviceTelemetryDelay() {
+  return randomBetween(4 * 60 * 1000, 9 * 60 * 1000);
+}
+
+function sameOccupancy(a: Record<string, number>, b: Record<string, number>) {
   return ROOM_KEYS.every((room) => a[room] === b[room]);
 }
 
@@ -57,13 +72,67 @@ function dedupeAlerts(alerts: Alert[]) {
   });
 }
 
+function clampOccupantCount(value: number) {
+  return Math.max(0, Math.min(MAX_OCCUPANTS_PER_ROOM, Math.round(value)));
+}
+
+function toOccupantCount(value: unknown) {
+  if (typeof value === "boolean") {
+    return value ? 1 : 0;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return clampOccupantCount(value);
+  }
+  return 0;
+}
+
+function normalizeOccupancy(payload: Record<string, unknown>) {
+  return ROOM_KEYS.reduce<Record<string, number>>((next, room) => {
+    next[room] = toOccupantCount(payload[room]);
+    return next;
+  }, {});
+}
+
+function nextOccupantCount(currentCount: number) {
+  const current = clampOccupantCount(currentCount);
+  if (current === 0) return 1;
+  if (current === MAX_OCCUPANTS_PER_ROOM) return MAX_OCCUPANTS_PER_ROOM - 1;
+  return clampOccupantCount(current + (Math.random() > 0.45 ? 1 : -1));
+}
+
+function getOptionalDevices(devices: Device[], room: RoomKey) {
+  return devices.filter(
+    (device) =>
+      device.room === room &&
+      !(
+        (device.type === "fan" && device.label === "Fan 1") ||
+        (device.type === "light" && device.label === "Light 1")
+      )
+  );
+}
+
+function ensureBaselinePower(devices: Device[], room: RoomKey) {
+  const hasActiveDevice = devices.some((device) => device.room === room && device.status === "on");
+  if (hasActiveDevice) return devices;
+
+  const now = new Date().toISOString();
+  return devices.map((device) => {
+    const isBaseline =
+      device.room === room &&
+      ((device.type === "fan" && device.label === "Fan 1") ||
+        (device.type === "light" && device.label === "Light 1"));
+
+    return isBaseline ? { ...device, status: "on" as const, lastChanged: now } : device;
+  });
+}
+
 export function useLiveOffice() {
   const [devices, setDevices] = useState<Device[]>(INITIAL_DEVICES);
   const [alerts, setAlerts] = useState<Alert[]>(INITIAL_ALERTS);
-  const [occupancy, setOccupancy] = useState<Record<string, boolean>>({
-    drawing: true,
-    work1: true,
-    work2: true,
+  const [occupancy, setOccupancy] = useState<Record<string, number>>({
+    drawing: 1,
+    work1: 3,
+    work2: 2,
   });
   const [todayKwh, setTodayKwh] = useState(4.85);
   const [connectionStatus, setConnectionStatus] = useState<"connected" | "reconnecting" | "mock">("reconnecting");
@@ -81,6 +150,16 @@ export function useLiveOffice() {
     drawing: false,
     work1: false,
     work2: false,
+  });
+  const nextOccupancyTransitionAtRef = useRef<Record<RoomKey, number>>({
+    drawing: 0,
+    work1: 0,
+    work2: 0,
+  });
+  const nextDeviceTelemetryAtRef = useRef<Record<RoomKey, number>>({
+    drawing: 0,
+    work1: 0,
+    work2: 0,
   });
 
   useEffect(() => {
@@ -179,8 +258,9 @@ export function useLiveOffice() {
                   setTodayKwh(data.todayKwh);
                 }
                 if (data.occupancy) {
+                  const nextOccupancy = normalizeOccupancy(data.occupancy);
                   setOccupancy((prev) =>
-                    sameOccupancy(prev, data.occupancy) ? prev : data.occupancy
+                    sameOccupancy(prev, nextOccupancy) ? prev : nextOccupancy
                   );
                 }
               }
@@ -208,7 +288,7 @@ export function useLiveOffice() {
               }
             } else if (data.type === "occupancy_update") {
               if (data.payload) {
-                const nextOccupancy = data.payload as Record<string, boolean>;
+                const nextOccupancy = normalizeOccupancy(data.payload as Record<string, unknown>);
                 setOccupancy((prev) =>
                   sameOccupancy(prev, nextOccupancy) ? prev : nextOccupancy
                 );
@@ -258,13 +338,64 @@ export function useLiveOffice() {
   useEffect(() => {
     if (connectionStatus !== "mock") return;
 
-    console.log("[Simulator] SSE unavailable. Keeping stable local office state.");
+    console.log("[Simulator] SSE unavailable. Running slow local office telemetry.");
+    const initialNow = Date.now();
+    ROOM_KEYS.forEach((room) => {
+        if (nextOccupancyTransitionAtRef.current[room] === 0) {
+          nextOccupancyTransitionAtRef.current[room] =
+            initialNow + nextOccupancyDelay(occupancyRef.current[room]);
+      }
+      if (nextDeviceTelemetryAtRef.current[room] === 0) {
+        nextDeviceTelemetryAtRef.current[room] = initialNow + nextDeviceTelemetryDelay();
+      }
+    });
 
-    // Accumulate energy consumption and enforce delayed vacant-room alerts.
+    // Slow office telemetry, energy accumulation, and delayed vacant-room alerts.
     const energyAccumulationTimer = setInterval(() => {
-      const currentDevices = devicesRef.current;
       const nowMs = Date.now();
 
+      ROOM_KEYS.forEach((room) => {
+        if (nowMs < nextOccupancyTransitionAtRef.current[room]) return;
+
+        const currentOccupancy = occupancyRef.current;
+        const previousCount = currentOccupancy[room] ?? 0;
+        const nextCount = nextOccupantCount(previousCount);
+        nextOccupancyTransitionAtRef.current[room] = nowMs + nextOccupancyDelay(nextCount);
+        setOccupancy((prev) => ({ ...prev, [room]: nextCount }));
+
+        if (nextCount > 0) {
+          vacantSinceRef.current[room] = null;
+          emptyRoomAlertSentRef.current[room] = false;
+          setDevices((prev) => ensureBaselinePower(prev, room));
+        } else if (previousCount > 0) {
+          vacantSinceRef.current[room] = nowMs;
+          emptyRoomAlertSentRef.current[room] = false;
+        }
+      });
+
+      ROOM_KEYS.forEach((room) => {
+        if (nowMs < nextDeviceTelemetryAtRef.current[room]) return;
+        nextDeviceTelemetryAtRef.current[room] = nowMs + nextDeviceTelemetryDelay();
+
+        const optionalDevices = getOptionalDevices(devicesRef.current, room);
+        if (optionalDevices.length === 0) return;
+
+        const selectedDevice = optionalDevices[Math.floor(Math.random() * optionalDevices.length)];
+        const lastChanged = new Date().toISOString();
+        setDevices((prev) =>
+          prev.map((device) =>
+            device.id === selectedDevice.id
+              ? {
+                  ...device,
+                  status: device.status === "on" ? "off" : "on",
+                  lastChanged,
+                }
+              : device
+          )
+        );
+      });
+
+      const currentDevices = devicesRef.current;
       let totalWatts = 0;
       currentDevices.forEach((d) => {
         if (d.status === "on") {
@@ -278,7 +409,7 @@ export function useLiveOffice() {
       setTodayKwh((prev) => Number((prev + incrementKwh).toFixed(5)));
 
       ROOM_KEYS.forEach((room) => {
-        if (occupancyRef.current[room]) {
+        if ((occupancyRef.current[room] ?? 0) > 0) {
           vacantSinceRef.current[room] = null;
           emptyRoomAlertSentRef.current[room] = false;
           return;

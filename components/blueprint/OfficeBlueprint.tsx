@@ -6,7 +6,7 @@ import { Device } from "../../lib/api-client";
 
 type OfficeBlueprintProps = {
   devices: Device[];
-  occupancy: Record<string, boolean>;
+  occupancy: Record<string, number>;
 };
 
 function HumanMarker({ x, y }: { x: number; y: number }) {
@@ -20,10 +20,34 @@ function HumanMarker({ x, y }: { x: number; y: number }) {
 }
 
 export default function OfficeBlueprint({ devices, occupancy }: OfficeBlueprintProps) {
-  const isRoomOccupied = (room: "drawing" | "work1" | "work2") => {
-    const hasActiveDevice = devices.some((device) => device.room === room && device.status === "on");
-    return occupancy[room] !== false || hasActiveDevice;
+  const getRoomPeople = (room: "drawing" | "work1" | "work2") => {
+    return Math.max(0, Math.min(4, occupancy[room] ?? 0));
   };
+
+  const isRoomOccupied = (room: "drawing" | "work1" | "work2") => {
+    return getRoomPeople(room) > 0;
+  };
+
+  const humanPositions = {
+    drawing: [
+      { x: 58, y: 185 },
+      { x: 57, y: 300 },
+      { x: 190, y: 205 },
+      { x: 220, y: 285 },
+    ],
+    work1: [
+      { x: 310, y: 150 },
+      { x: 480, y: 202 },
+      { x: 310, y: 202 },
+      { x: 480, y: 150 },
+    ],
+    work2: [
+      { x: 560, y: 150 },
+      { x: 730, y: 202 },
+      { x: 560, y: 202 },
+      { x: 730, y: 150 },
+    ],
+  } as const;
 
   // Find device status helper
   const getDevice = (id: string) => {
@@ -293,22 +317,25 @@ export default function OfficeBlueprint({ devices, occupancy }: OfficeBlueprintP
           {/* 10. Human Occupancy Figures */}
           {isRoomOccupied("drawing") && (
             <g>
-              <HumanMarker x={58} y={185} />
-              <HumanMarker x={57} y={300} />
+              {humanPositions.drawing.slice(0, getRoomPeople("drawing")).map((position) => (
+                <HumanMarker key={`${position.x}-${position.y}`} x={position.x} y={position.y} />
+              ))}
             </g>
           )}
 
           {isRoomOccupied("work1") && (
             <g>
-              <HumanMarker x={310} y={150} />
-              <HumanMarker x={480} y={202} />
+              {humanPositions.work1.slice(0, getRoomPeople("work1")).map((position) => (
+                <HumanMarker key={`${position.x}-${position.y}`} x={position.x} y={position.y} />
+              ))}
             </g>
           )}
 
           {isRoomOccupied("work2") && (
             <g>
-              <HumanMarker x={560} y={150} />
-              <HumanMarker x={730} y={202} />
+              {humanPositions.work2.slice(0, getRoomPeople("work2")).map((position) => (
+                <HumanMarker key={`${position.x}-${position.y}`} x={position.x} y={position.y} />
+              ))}
             </g>
           )}
 

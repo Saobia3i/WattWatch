@@ -3,7 +3,7 @@ import { Device, Alert } from "./api-client";
 interface DbState {
   devices: Device[];
   alerts: Alert[];
-  occupancy: Record<string, boolean>;
+  occupancy: Record<string, number>;
   todayKwh: number;
 }
 
@@ -47,7 +47,7 @@ if (process.env.NODE_ENV === "production") {
   db = {
     devices: INITIAL_DEVICES,
     alerts: INITIAL_ALERTS,
-    occupancy: { drawing: true, work1: true, work2: true },
+    occupancy: { drawing: 1, work1: 3, work2: 2 },
     todayKwh: 4.85,
   };
 } else {
@@ -56,7 +56,7 @@ if (process.env.NODE_ENV === "production") {
     globalRecords._db = {
       devices: INITIAL_DEVICES,
       alerts: INITIAL_ALERTS,
-      occupancy: { drawing: true, work1: true, work2: true },
+      occupancy: { drawing: 1, work1: 3, work2: 2 },
       todayKwh: 4.85,
     };
   }
@@ -69,6 +69,57 @@ const ROOM_KEYS = ["drawing", "work1", "work2"] as const;
 type RoomKey = (typeof ROOM_KEYS)[number];
 const EMPTY_ROOM_ALERT_DELAY_MS = 15 * 60 * 1000;
 const MAX_ALERTS = 50;
+const MAX_OCCUPANTS_PER_ROOM = 4;
+
+function randomBetween(min: number, max: number) {
+  return min + Math.random() * (max - min);
+}
+
+function nextOccupancyDelay(occupantCount: number) {
+  return occupantCount > 0
+    ? randomBetween(6 * 60 * 1000, 12 * 60 * 1000)
+    : randomBetween(3 * 60 * 1000, 7 * 60 * 1000);
+}
+
+function nextDeviceTelemetryDelay() {
+  return randomBetween(4 * 60 * 1000, 9 * 60 * 1000);
+}
+
+function clampOccupantCount(value: number) {
+  return Math.max(0, Math.min(MAX_OCCUPANTS_PER_ROOM, Math.round(value)));
+}
+
+export function toOccupantCount(value: unknown) {
+  if (typeof value === "boolean") {
+    return value ? 1 : 0;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return clampOccupantCount(value);
+  }
+  return 0;
+}
+
+function nextOccupantCount(currentCount: number) {
+  const current = clampOccupantCount(currentCount);
+  if (current === 0) return 1;
+  if (current === MAX_OCCUPANTS_PER_ROOM) return MAX_OCCUPANTS_PER_ROOM - 1;
+  return clampOccupantCount(current + (Math.random() > 0.45 ? 1 : -1));
+}
+
+ROOM_KEYS.forEach((room) => {
+  db.occupancy[room] = toOccupantCount(db.occupancy[room]);
+});
+
+function getOptionalDevices(room: RoomKey) {
+  return db.devices.filter(
+    (device) =>
+      device.room === room &&
+      !(
+        (device.type === "fan" && device.label === "Fan 1") ||
+        (device.type === "light" && device.label === "Light 1")
+      )
+  );
+}
 
 // List of connected SSE clients
 type SseClient = {
@@ -140,9 +191,9 @@ export function addAlert(alert: Alert) {
   return true;
 }
 
-export function ensureOccupiedRoomsHaveBaselinePower(occupancy: Record<string, boolean>) {
+export function ensureOccupiedRoomsHaveBaselinePower(occupancy: Record<string, number>) {
   ROOM_KEYS.forEach((room) => {
-    if (!occupancy[room]) return;
+    if (occupancy[room] <= 0) return;
 
     const roomDevices = db.devices.filter((device) => device.room === room);
     const hasActiveDevice = roomDevices.some((device) => device.status === "on");
@@ -189,11 +240,56 @@ export function startServerSimulator() {
 
   const vacantSince: Record<RoomKey, number | null> = { drawing: null, work1: null, work2: null };
   const alertsSent: Record<RoomKey, boolean> = { drawing: false, work1: false, work2: false };
+  const nextOccupancyTransitionAt: Record<RoomKey, number> = {
+    drawing: Date.now() + nextOccupancyDelay(db.occupancy.drawing),
+    work1: Date.now() + nextOccupancyDelay(db.occupancy.work1),
+    work2: Date.now() + nextOccupancyDelay(db.occupancy.work2),
+  };
+  const nextDeviceTelemetryAt: Record<RoomKey, number> = {
+    drawing: Date.now() + nextDeviceTelemetryDelay(),
+    work1: Date.now() + nextDeviceTelemetryDelay(),
+    work2: Date.now() + nextDeviceTelemetryDelay(),
+  };
 
   setInterval(() => {
     const now = Date.now();
 
-    // 1. Accumulate kWh from the current stable device state.
+    // 1. Slow scripted people-count simulation: minutes-scale, never twitchy.
+    ROOM_KEYS.forEach((room) => {
+      if (now < nextOccupancyTransitionAt[room]) return;
+
+      const previousCount = db.occupancy[room];
+      const nextCount = nextOccupantCount(previousCount);
+      db.occupancy[room] = nextCount;
+      nextOccupancyTransitionAt[room] = now + nextOccupancyDelay(nextCount);
+
+      if (nextCount > 0) {
+        vacantSince[room] = null;
+        alertsSent[room] = false;
+        ensureOccupiedRoomsHaveBaselinePower(db.occupancy);
+      } else if (previousCount > 0) {
+        vacantSince[room] = now;
+        alertsSent[room] = false;
+      }
+
+      broadcast("occupancy_update", db.occupancy);
+    });
+
+    // 2. Slow device telemetry for non-baseline devices.
+    ROOM_KEYS.forEach((room) => {
+      if (now < nextDeviceTelemetryAt[room]) return;
+      nextDeviceTelemetryAt[room] = now + nextDeviceTelemetryDelay();
+
+      const optionalDevices = getOptionalDevices(room);
+      if (optionalDevices.length === 0) return;
+
+      const device = optionalDevices[Math.floor(Math.random() * optionalDevices.length)];
+      device.status = device.status === "on" ? "off" : "on";
+      device.lastChanged = new Date().toISOString();
+      broadcast("device_update", device);
+    });
+
+    // 3. Accumulate kWh from the current device state.
     let totalWatts = 0;
     const perRoomWatts = { drawing: 0, work1: 0, work2: 0 };
     db.devices.forEach((d) => {
@@ -213,9 +309,9 @@ export function startServerSimulator() {
       perRoom: perRoomWatts,
     });
 
-    // 2. Check 15-minute vacant rules. Occupancy comes from API/sensors, not random fallback.
+    // 4. Check 15-minute vacant rules.
     ROOM_KEYS.forEach((r) => {
-      const roomVacant = !db.occupancy[r];
+      const roomVacant = db.occupancy[r] <= 0;
       if (roomVacant) {
         const activeDevs = db.devices.filter((d) => d.room === r && d.status === "on");
         if (activeDevs.length > 0) {

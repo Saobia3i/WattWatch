@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { db, broadcast, ensureOccupiedRoomsHaveBaselinePower } from "../../../lib/db";
+import { db, broadcast, ensureOccupiedRoomsHaveBaselinePower, toOccupantCount } from "../../../lib/db";
 
 export async function GET() {
   return NextResponse.json({
@@ -15,7 +15,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { room, isOccupied, occupancy, todayKwh } = body;
+    const { room, isOccupied, occupantCount, occupancy, todayKwh } = body;
 
     let occupancyUpdated = false;
 
@@ -24,21 +24,22 @@ export async function POST(request: NextRequest) {
       const occObj = occupancy as Record<string, unknown>;
       Object.keys(occObj).forEach((r) => {
         if (r in db.occupancy) {
-          const nextOccupied = !!occObj[r];
-          if (db.occupancy[r] !== nextOccupied) {
-            db.occupancy[r] = nextOccupied;
+          const nextCount = toOccupantCount(occObj[r]);
+          if (db.occupancy[r] !== nextCount) {
+            db.occupancy[r] = nextCount;
             occupancyUpdated = true;
           }
         }
       });
       console.log("[Simulator API] Full occupancy state updated:", db.occupancy);
-    } else if (room && typeof isOccupied === "boolean") {
+    } else if (room && (typeof isOccupied === "boolean" || typeof occupantCount === "number")) {
       if (room in db.occupancy) {
-        if (db.occupancy[room] !== isOccupied) {
-          db.occupancy[room] = isOccupied;
+        const nextCount = typeof occupantCount === "number" ? toOccupantCount(occupantCount) : toOccupantCount(isOccupied);
+        if (db.occupancy[room] !== nextCount) {
+          db.occupancy[room] = nextCount;
           occupancyUpdated = true;
         }
-        console.log(`[Simulator API] Room "${room}" occupancy updated to: ${isOccupied}`);
+        console.log(`[Simulator API] Room "${room}" occupancy count updated to: ${nextCount}`);
       }
     }
 

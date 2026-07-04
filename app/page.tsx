@@ -80,7 +80,8 @@ export default function Home() {
               const roomDevices = devices.filter((d) => d.room === room.key);
               const roomActiveWatts = usage.perRoom[room.key] || 0;
               const activeCount = roomDevices.filter((d) => d.status === "on").length;
-              const roomHasHumans = occupancy[room.key] || activeCount > 0;
+              const humanCount = Math.max(0, occupancy[room.key] ?? 0);
+              const roomHasHumans = humanCount > 0;
 
               return (
                 <div key={room.key} className="border border-line rounded overflow-hidden">
@@ -114,7 +115,7 @@ export default function Home() {
                       {/* Technical Room Stats */}
                       <div className="grid grid-cols-2 gap-2 text-[9px] font-mono border-b border-line/40 pb-2 mb-1">
                         <span className={roomHasHumans ? "text-power-on font-bold" : "text-ink-muted"}>
-                          OCCUPANCY: {roomHasHumans ? "OCCUPIED" : "VACANT"}
+                          OCCUPANCY: {roomHasHumans ? `${humanCount} HUMAN${humanCount === 1 ? "" : "S"}` : "VACANT"}
                         </span>
                         <span className="text-right text-ink-muted">PEAK_CAPACITY: 165W</span>
                       </div>
