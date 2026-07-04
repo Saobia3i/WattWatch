@@ -7,7 +7,7 @@
 ## 🌟 Project Video & Live Demos
 *   **Live Web Dashboard**: [https://wattwatch-f099.onrender.com](https://wattwatch-f099.onrender.com)
 *   **Vercel Mirror**: [https://watt-watch-chi.vercel.app](https://watt-watch-chi.vercel.app)
-*   **Discord Bot Username**: `WattWatchBot#9999` (Active and listening 24/7)
+*   **Discord Bot Username**: `Smart Circuit Bot` (Active and listening 24/7)
 
 ---
 
@@ -25,7 +25,7 @@ In modern office spaces, electrical appliances (lights, fans, HVACs) are frequen
 
 WattWatch utilizes a single source of truth backed by a local SQLite database, sync'd instantly to clients via an HTTP Server-Sent Events (SSE) stream.
 
-![WattWatch System Architecture Diagram](/public/system_diagram.svg)
+![WattWatch System Architecture Diagram](system_architecture.png)
 
 ### Data-Flow Walkthrough:
 1.  **Simulation/Hardware Layer**: The Python simulator (`simulator.py`) or physical ESP32 chips push telemetry and occupancy logs to Next.js API endpoints.
@@ -147,6 +147,16 @@ You should immediately see live JSON strings printing every second, representing
 `{"room":"drawing","occupants":1,"fan1":0,"fan2":1,"light1":1,"light2":0,"light3":0}`
 
 This JSON telemetry is what our Python/Node backend ingests to update the `wattwatch.db` database in real-time!
+
+---
+
+### How the Hardware Logic Works
+
+Our simulated Arduino Mega acts as the physical brain of the office, processing inputs and broadcasting state changes:
+
+* **Occupancy Tracking:** We use PIR motion sensors mapped to entryways. The logic increments or decrements a `peopleCount` variable to track exactly how many employees are in a given room at any time.
+* **Manual Override Control:** To prevent wasteful energy consumption (and to reflect real-world behavior), the devices do not turn on automatically when someone enters. Instead, the 15 devices (2 fans and 3 lights per room) strictly read the physical state of the manual slide switches. 
+* **JSON Telemetry Generation:** Every second, the Arduino's main loop reads the current switch states and sensor counts, packages them into a formatted JSON string, and pushes them out via the Serial Monitor. This acts as the raw data pipeline for our backend.
 
 ---
 
