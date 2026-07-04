@@ -1,52 +1,84 @@
+// app/api/devices/route.ts
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { db, broadcast } from "../../../lib/db";
+import { getDb } from "../../../lib/sqlite";
+import { initializeDatabase } from "../../../lib/init-db";
+import { broadcast } from "../../../lib/db"; // Keeps the real-time websocket working
 
+// GET: Fetch all devices and initialize DB if missing
 export async function GET() {
-  return NextResponse.json(db.devices);
+  try {
+    // 1. Ensure the database and tables exist
+    await initializeDatabase();
+
+    // 2. Connect to SQLite
+    const db = await getDb();
+
+    // 3. Read the live data
+    const rows = await db.all("SELECT * FROM devices");
+
+    // 4. Format it for the React UI
+    const devices = rows.map((row) => ({
+      id: row.id,
+      type: row.type,
+      room: row.room_id,
+      label: row.name,
+      status: row.is_on === 1 ? "on" : "off",
+      wattage: row.rated_power_watts,
+      lastChanged: row.last_changed,
+    }));
+
+    return NextResponse.json(devices);
+  } catch (error) {
+    console.error("Database GET Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
 }
 
+// POST: Toggle a device on/off
 export async function POST(request: NextRequest) {
   try {
-    const { id, status } = await request.json();
-    const device = db.devices.find((d) => d.id === id);
+    // Parse the JSON exactly once to get the ID from the frontend
+    const { id } = await request.json();
+    const db = await getDb();
 
+    // 1. Find the device in the SQLite database
+    const device = await db.get("SELECT * FROM devices WHERE id = ?", [id]);
     if (!device) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
     }
 
-    if (status !== "on" && status !== "off") {
-      return NextResponse.json({ error: "Device status must be 'on' or 'off'" }, { status: 400 });
-    }
+    // 2. Toggle the status (0 to 1, or 1 to 0)
+    const newIsOn = device.is_on === 1 ? 0 : 1;
+    const now = new Date().toISOString();
 
-    // Telemetry update from simulator/database feed.
-    device.status = status;
-    device.lastChanged = new Date().toISOString();
+    // 3. Save the new status to SQLite
+    await db.run(
+      "UPDATE devices SET is_on = ?, last_changed = ? WHERE id = ?",
+      [newIsOn, now, id]
+    );
 
-    // Broadcast update to all SSE clients
-    broadcast("device_update", device);
+    // 4. Fetch the updated row to broadcast
+    const updatedRow = await db.get("SELECT * FROM devices WHERE id = ?", [id]);
+    const updatedDevice = {
+      id: updatedRow.id,
+      type: updatedRow.type,
+      room: updatedRow.room_id,
+      label: updatedRow.name,
+      status: updatedRow.is_on === 1 ? "on" : "off",
+      wattage: updatedRow.rated_power_watts,
+      lastChanged: updatedRow.last_changed,
+    };
 
-    // Derived updates: calculate total active demand and broadcast
-    let totalWatts = 0;
-    const perRoomWatts = { drawing: 0, work1: 0, work2: 0 };
-    
-    db.devices.forEach((d) => {
-      if (d.status === "on") {
-        totalWatts += d.wattage;
-        perRoomWatts[d.room] += d.wattage;
-      }
-    });
+    // 5. Broadcast the update to the UI
+    broadcast("device_update", updatedDevice);
 
-    broadcast("usage_update", {
-      totalWattsNow: totalWatts,
-      todayKwh: db.todayKwh,
-      perRoom: perRoomWatts,
-    });
-
-    return NextResponse.json(device);
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json(updatedDevice);
+  } catch (error) {
+    console.error("Database POST Error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: errorMessage }, { status: 400 });
   }
 }
