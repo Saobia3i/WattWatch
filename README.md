@@ -122,6 +122,33 @@ python discord_bot.py
 ```
 
 ---
+## 🔌 Hardware Simulation (Wokwi)
+
+To simulate our office environment without physical hardware, we used [Wokwi](https://wokwi.com/) to build a virtual Arduino Mega setup. This simulates our 15 devices (fans and lights across 3 rooms), PIR motion sensors, and physical wall switches. 
+
+### Wokwi Setup Instructions
+
+1. Go to [Wokwi Arduino Simulator](https://wokwi.com/arduino/projects) and open a new Arduino Mega project.
+2. Open the `arduino/` folder in this repository.
+3. Copy the contents of `sketch.ino` into the Wokwi code editor.
+4. Copy the contents of `diagram.json` into the Wokwi diagram editor (this will automatically generate the wiring, sensors, and switches).
+5. Click the green **Play** button to start the simulation.
+
+### How to Test and Verify Output
+
+Once the simulation is running, you can manually interact with the virtual environment to test the logic:
+
+* **Triggering Sensors:** Click on any of the PIR sensors and press "Simulate Motion" to mimic an employee walking into a room. 
+* **Toggling Devices:** Click the physical slide switches to manually turn individual fans and lights ON or OFF.
+* **Checking the Telemetry:** Open the **Serial Monitor** at the bottom of the Wokwi screen. 
+
+You should immediately see live JSON strings printing every second, representing the current state of the office. It will look like this:
+
+`{"room":"drawing","occupants":1,"fan1":0,"fan2":1,"light1":1,"light2":0,"light3":0}`
+
+This JSON telemetry is what our Python/Node backend ingests to update the `wattwatch.db` database in real-time!
+
+---
 
 ## 🤖 7. Discord Bot Command Cheat Sheet
 
