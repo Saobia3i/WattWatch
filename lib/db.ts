@@ -295,18 +295,45 @@ export function startServerSimulator() {
         }
       }
 
-      // 5. Proactive time-of-day alert checks (10:00 PM and 3:15 PM/AM testing)
+      // 5. Proactive after-hours alert checks (5:00 PM - 9:00 AM hourly; 3:30 PM - 5:00 PM every 5 min for testing)
       const localTime = new Date();
       const localHours = localTime.getHours();
       const localMinutes = localTime.getMinutes();
       const timeKey = `${localHours}:${localMinutes}`;
-      const isTargetTime = (localHours === 15 && localMinutes === 15) || 
-                           (localHours === 3 && localMinutes === 15) || 
-                           (localHours === 22 && localMinutes === 0);
 
-      if (isTargetTime && lastTimeAlertTriggered !== timeKey) {
+      let shouldTrigger = false;
+      let timeFormatted = "";
+
+      // Testing range: 3:30 PM to 5:00 PM (15:30 to 16:59)
+      if (localHours === 15 && localMinutes >= 30) {
+        if (localMinutes % 5 === 0) {
+          shouldTrigger = true;
+          const ampm = localHours >= 12 ? 'PM' : 'AM';
+          const displayHour = localHours % 12 || 12;
+          const displayMinute = localMinutes < 10 ? `0${localMinutes}` : localMinutes;
+          timeFormatted = `${displayHour}:${displayMinute} ${ampm}`;
+        }
+      } else if (localHours === 16) {
+        if (localMinutes % 5 === 0) {
+          shouldTrigger = true;
+          const ampm = localHours >= 12 ? 'PM' : 'AM';
+          const displayHour = localHours % 12 || 12;
+          const displayMinute = localMinutes < 10 ? `0${localMinutes}` : localMinutes;
+          timeFormatted = `${displayHour}:${displayMinute} ${ampm}`;
+        }
+      }
+      // Production range: after-hours outside 9:00 AM - 5:00 PM (i.e. >= 17:00 or < 9:00)
+      else if (localHours >= 17 || localHours < 9) {
+        if (localMinutes === 0) {
+          shouldTrigger = true;
+          const ampm = localHours >= 12 ? 'PM' : 'AM';
+          const displayHour = localHours % 12 || 12;
+          timeFormatted = `${displayHour} ${ampm}`;
+        }
+      }
+
+      if (shouldTrigger && lastTimeAlertTriggered !== timeKey) {
         lastTimeAlertTriggered = timeKey;
-        const timeFormatted = localHours === 22 ? "10 PM" : (localHours === 15 ? "3:15 PM" : "3:15 AM");
         
         for (const r of ROOM_KEYS) {
           const roomDevices = currentDevices.filter((d) => d.room_id === r && d.is_on === 1);
