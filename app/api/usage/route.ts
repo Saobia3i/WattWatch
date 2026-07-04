@@ -1,25 +1,39 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { db } from "../../../lib/db";
+import { getDb } from "../../../lib/sqlite";
 import { UsageStats } from "../../../lib/api-client";
 
 export async function GET() {
-  let totalWattsNow = 0;
-  const perRoom: Record<string, number> = { drawing: 0, work1: 0, work2: 0 };
+  try {
+    const db = await getDb();
 
-  db.devices.forEach((d) => {
-    if (d.status === "on") {
-      totalWattsNow += d.wattage;
-      perRoom[d.room] += d.wattage;
-    }
-  });
+    // 1. Fetch all devices to compute current load
+    const devices = await db.all("SELECT * FROM devices");
+    let totalWattsNow = 0;
+    const perRoom: Record<string, number> = { drawing: 0, work1: 0, work2: 0 };
 
-  const usageStats: UsageStats = {
-    totalWattsNow,
-    todayKwh: db.todayKwh,
-    perRoom,
-  };
+    devices.forEach((d) => {
+      if (d.is_on === 1) {
+        totalWattsNow += d.rated_power_watts;
+        perRoom[d.room_id] = (perRoom[d.room_id] || 0) + d.rated_power_watts;
+      }
+    });
 
-  return NextResponse.json(usageStats);
+    // 2. Fetch today's energy from system_state
+    const todayKwhRow = await db.get("SELECT value FROM system_state WHERE key = 'today_kwh'");
+    const todayKwh = todayKwhRow ? parseFloat(todayKwhRow.value) : 4.85;
+
+    const usageStats: UsageStats = {
+      totalWattsNow,
+      todayKwh,
+      perRoom,
+    };
+
+    return NextResponse.json(usageStats);
+  } catch (error) {
+    console.error("Usage GET Error:", error);
+    const message = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

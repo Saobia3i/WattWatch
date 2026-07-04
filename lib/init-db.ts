@@ -49,6 +49,18 @@ export async function initializeDatabase() {
         recorded_at TEXT NOT NULL,
         FOREIGN KEY(device_id) REFERENCES devices(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS occupants (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        phone TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS system_state (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
   `);
 
   // Seed the rooms
@@ -85,5 +97,18 @@ export async function initializeDatabase() {
     ('work2-light-1', 'work2', 'Light 1', 'light', 0, 15, datetime('now')),
     ('work2-light-2', 'work2', 'Light 2', 'light', 0, 15, datetime('now')),
     ('work2-light-3', 'work2', 'Light 3', 'light', 0, 15, datetime('now'));
+  `);
+
+  // Seed Occupants (Nafisa Rahman, Tanvir Hossain)
+  await db.exec(`
+    INSERT OR IGNORE INTO occupants (id, name, email, phone) VALUES
+    ('nafisa', 'Nafisa Rahman', 'nafisa.rahman@yahoo.com', '+8801812345678'),
+    ('tanvir', 'Tanvir Hossain', 'tanvir.hossain@yahoo.com', '+8801912345678');
+  `);
+
+  // Seed Initial System State (today_kwh)
+  await db.exec(`
+    INSERT OR IGNORE INTO system_state (key, value) VALUES
+    ('today_kwh', '4.85');
   `);
 }
