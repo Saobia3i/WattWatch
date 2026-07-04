@@ -39,10 +39,13 @@ class HealthCheckHandler(SimpleHTTPRequestHandler):
         pass
 
 def run_health_check_server():
-    port = int(os.getenv("PORT", 8080))
-    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-    print(f"[HealthCheck] Running dummy HTTP server on port {port} for Render Free Web Service...")
-    server.serve_forever()
+    try:
+        port = int(os.getenv("PORT", 8080))
+        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+        print(f"[HealthCheck] Running dummy HTTP server on port {port} for Render Free Web Service...")
+        server.serve_forever()
+    except Exception as e:
+        print(f"[HealthCheck] Warning: Dummy health server could not start: {e}. (This is normal when running locally if port {os.getenv('PORT', 8080)} is in use. The bot will still run fine!)")
 
 async def ask_llm(prompt: str) -> str:
     """Friendly conversational helper utilizing Gemini 2.5 Flash or Groq Llama-3 API"""
