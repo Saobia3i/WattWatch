@@ -113,11 +113,11 @@ void updateLoads() {
   bool isOccupied = (peopleCount > 0);
 
   // Note: digitalRead() == LOW means the slide switch is pulled to Ground (Flipped ON)
-  bool l1State = (isOccupied || digitalRead(swLight1) == LOW);
-  bool l2State = (isOccupied || digitalRead(swLight2) == LOW);
-  bool l3State = (isOccupied || digitalRead(swLight3) == LOW);
-  bool f1State = (isOccupied || digitalRead(swFan1) == LOW);
-  bool f2State = (isOccupied || digitalRead(swFan2) == LOW);
+  bool l1State = (digitalRead(swLight1) == LOW);
+  bool l2State = (digitalRead(swLight2) == LOW);
+  bool l3State = (digitalRead(swLight3) == LOW);
+  bool f1State = (digitalRead(swFan1) == LOW);
+  bool f2State = (digitalRead(swFan2) == LOW);
 
   // Apply physical voltage to pins
   digitalWrite(light1, l1State ? HIGH : LOW);
