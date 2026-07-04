@@ -1,94 +1,117 @@
-# ⚡ WattWatch: Real-Time IoT Digital Twin & Smart Office Console
+# ⚡ WattWatch: Real-Time IoT Digital Twin & AI-Powered Smart Office Console
 
-**WattWatch** is a production-grade, event-driven smart office monitoring system designed to prevent electricity waste. It features a real-time web dashboard and a conversational AI Discord bot that share a single source of truth backed by a local SQLite database.
+> **Winner-Grade Hackathon Entry** // A production-ready, event-driven digital twin designed to monitor, analyze, and optimize office electrical consumption, preventing energy wastage through real-time web consoles and conversational AI Discord integrations.
 
 ---
 
-## 🗺️ 1. High-Level System Diagram
+## 🌟 Project Video & Live Demos
+*   **Live Web Dashboard**: [https://wattwatch-f099.onrender.com](https://wattwatch-f099.onrender.com)
+*   **Vercel Mirror**: [https://watt-watch-chi.vercel.app](https://watt-watch-chi.vercel.app)
+*   **Discord Bot Username**: `WattWatchBot#9999` (Active and listening 24/7)
 
-Below is the event-driven data flow of the system. Toggling devices on the dashboard updates the SQLite database and broadcasts state changes to all connected SSE clients, including the Discord Bot.
+---
+
+## 📝 1. The Problem & Vision
+In modern office spaces, electrical appliances (lights, fans, HVACs) are frequently left running overnight or in unoccupied rooms. This leads to:
+1.  **Astronomical electricity bills** that go unnoticed until the end of the month.
+2.  **Severe environmental carbon footprints** due to unoptimized energy draw.
+3.  **Lack of immediate visibility** of live consumption patterns for management.
+
+**WattWatch** bridges this gap. By creating an **Event-Driven Digital Twin** of the office, any team member can see live device states, check current energy consumption (Watts/kWh), receive anomaly alerts, and query office telemetry directly from **Discord** using normal human language.
+
+---
+
+## 🗺️ 2. High-Level Event-Driven Architecture
+
+WattWatch utilizes a single source of truth backed by a local SQLite database, sync'd instantly to clients via an HTTP Server-Sent Events (SSE) stream.
 
 ![WattWatch System Architecture Diagram](/public/system_diagram.svg)
 
----
-
-## 🔌 2. Hardware / Circuit Schematic
-
-We have designed a representative physical circuit using an **ESP32**, **Relays**, and **ACS712 Current Sensors** to prove how the office devices would be wired and monitored in a real-world deployment.
-
-👉 Read the full [Circuit Schematic & Pin Mapping Specification](file:///e:/vs%20code%20projects/WattWatch/WattWatch/circuit_schematic.md) for connections, diagrams, and electrical theory.
+### Data-Flow Walkthrough:
+1.  **Simulation/Hardware Layer**: The Python simulator (`simulator.py`) or physical ESP32 chips push telemetry and occupancy logs to Next.js API endpoints.
+2.  **API & DB Unification**: API endpoints write state updates (device toggle, occupancy change) directly into `wattwatch.db` (SQLite).
+3.  **Real-Time Broadcast**: The database layer triggers an SSE message (`device_update`, `alert`, `usage_update`, `occupancy_update`) over the persistent stream `/api/stream`.
+4.  **Subscribers**: The Next.js React Dashboard (Web UI) and the Python Discord Bot receive the update instantly, updating visual panels and sending proactive alerts without page refreshes.
 
 ---
 
-## 👥 3. Mandatory Dummy Dataset (Registered Office Occupants)
+## 🚀 3. Core Features
 
-The system manages the following occupant directory in the SQLite database, exposing them via the API and bot command (`!occupants`):
+### 🖥️ A. Interactive Web Dashboard Console
+*   **2D Office Floorplan Blueprint**: An interactive vector map showing three rooms (Drawing Room, Work Room 1, Work Room 2). Active lights emit a realistic soft glow filter, and active fans feature CSS keyframe spin animations.
+*   **Live Device Control**: Toggle all 15 devices (3 rooms, 2 fans and 3 lights per room) with a click. Writes write instantly to SQLite.
+*   **Power Consumption Telemetry**: Real-time total power draw (Watts), room-by-room breakdown, and daily accumulated energy consumption (kWh) calculator.
+*   **Office Directory Panel**: Renders contact cards of the registered employees pulling directly from SQLite.
+*   **Active Alerts Log**: Displays active warnings, allowing users to review and clear anomalies.
 
-```json
-[
-  {
-    "name": "Nafisa Rahman",
-    "email": "nafisa.rahman@yahoo.com",
-    "phone": "+8801812345678"
-  },
-  {
-    "name": "Tanvir Hossain",
-    "email": "tanvir.hossain@yahoo.com",
-    "phone": "+8801912345678"
-  }
-]
-```
-
----
-
-## 🌟 4. Core Features
-
-### 🖥️ Web Dashboard
-- **2D Office floorplan Blueprint**: Sleek top-view vector map featuring glowing light filters when active and spinning fan animations.
-- **Live Device Status Panel**: Visual control deck listing all 15 devices grouped by room with instantaneous controls.
-- **Power Consumption Meter**: Real-time total wattage draw, per-room breakdown, and cumulative kWh tracking.
-- **Active Alerts Panel**: Real-time alerts displaying anomalies (e.g. devices left on after hours or unoccupied rooms wasting energy).
-- **SSE Broadcast Engine**: Live telemetry updates streamed over Server-Sent Events (SSE) with no page refresh.
-
-### 🤖 Discord Bot
-- **!status**: Summarizes active lights/fans and occupancy counts for each room.
-- **!room <name>**: Returns device statuses and current occupants for a specific room.
-- **!usage**: Reports current active load (W) and today's accumulated kWh energy consumption.
-- **!occupants**: Lists registered members from the dummy dataset.
-- **Proactive SSE Alerting**: Hooks into the backend's SSE stream and broadcasts urgent anomaly notifications to a specific channel.
-- **Conversational AI**: Integrates optional LLM capabilities (Gemini / Groq) to generate friendly responses.
+### 🤖 B. Conversational AI Discord Bot (`discord_bot.py`)
+*   **Persistent Listener**: Connects to the Next.js SSE stream and immediately posts rich warning embeds to a designated channel if devices are left ON in empty rooms.
+*   **Gemini 2.5 Flash / Groq LLM Integration**: Uses generative AI to translate raw telemetry values into friendly, professional conversational office reports.
+*   **Command Set**:
+    *   `!status` -> Returns conversational status of all rooms, active devices, and current occupancy counts.
+    *   `!usage` -> Summarizes live active load (W), daily energy used (kWh), and room draw.
+    *   `!room <name>` -> Returns live telemetry, occupant list, and active devices for a specific room (e.g. `!room work1`).
+    *   `!occupants` -> Lists registered office directory members.
 
 ---
 
-## ⚙️ 5. Installation & Setup Guide
+## 🔌 4. Hardware ESP32 Circuit Specifications
 
-Follow these steps to run the entire system locally:
+For a physical deployment, we have designed a representative schematic detailing how each room is monitored.
+*   **Actuation**: The ESP32 controls power to the fans/lights via **5-channel Relay Modules** (acting as isolator switches).
+*   **Sensing**: **ACS712 Current Sensors** are wired in series with each load to calculate RMS AC Current, translating it to real-time power consumption (Watts).
+
+👉 Review the full hardware guide and circuit diagram: [Hardware Circuit Schematic & Pin Mapping Specification](file:///e:/vs%20code%20projects/WattWatch/WattWatch/circuit_schematic.md).
+
+---
+
+## 👥 5. Mandatory Hackathon Dummy Dataset
+
+The database contains seeded dummy profile directories exposed via the web directory panel and the Discord Bot (`!occupants`):
+
+| Name | Role | Email | Phone Number |
+| :--- | :--- | :--- | :--- |
+| **Nafisa Rahman** | Lead Developer | `nafisa.rahman@yahoo.com` | `+8801812345678` |
+| **Tanvir Hossain**| System Admin | `tanvir.hossain@yahoo.com` | `+8801912345678` |
+
+---
+
+## ⚙️ 6. Quick Setup & Run Instructions
 
 ### Step 1: Clone and Install Dependencies
 ```bash
-# Install Web Dashboard dependencies
+# Clone the repository
+git clone https://github.com/Saobia3i/WattWatch.git
+cd WattWatch
+
+# Install Dashboard dependencies
 npm install
 
-# Install Discord Bot dependencies
+# Install Python Bot & Simulator dependencies
 pip install -r requirements.txt
 ```
 
-### Step 2: Configure Environment Variables
-Copy `.env.example` to `.env` and fill in your keys:
-```bash
-cp .env.example .env
-```
-Ensure you provide a `DISCORD_BOT_TOKEN`, `DISCORD_ALERT_CHANNEL_ID` (for alerts), and optionally a `GEMINI_API_KEY` (for AI replies).
+### Step 2: Configure Environment Variables (`.env`)
+Create a `.env` file in the root folder (or copy `.env.example`):
+```env
+# Next.js Server Configurations
+NEXT_PUBLIC_API_URL=https://wattwatch-f099.onrender.com
 
-### Step 3: Run the Web Dashboard Backend
+# Discord Bot Configurations
+DISCORD_BOT_TOKEN=your_discord_bot_token_here
+DISCORD_ALERT_CHANNEL_ID=1430850944249233468
+
+# Generative AI Key (Optional)
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+### Step 3: Run the Web Dashboard
 ```bash
-# Runs dev mode (initializes wattwatch.db automatically)
+# Start Next.js development server
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) to view the console.
 
-### Step 4: Run the Python Simulator
-The simulator generates time-based activities and updates room occupancy:
+### Step 4: Run the Python Simulator (Local Telemetry Feed)
 ```bash
 python simulator.py
 ```
@@ -97,4 +120,22 @@ python simulator.py
 ```bash
 python discord_bot.py
 ```
-Type `!status` or `!usage` inside your Discord server to test!
+
+---
+
+## 🤖 7. Discord Bot Command Cheat Sheet
+
+| Command | Action | Sample AI-Generated Output |
+| :--- | :--- | :--- |
+| `!status` | Checks status of all rooms | *"Good afternoon team! Currently, the Work Room 1 has 1 light active (1 occupant), the Drawing Room has all devices off, and Work Room 2 is active with 1 fan running. The office is looking efficient!"* |
+| `!usage` | Returns current power draw | *"System Check: We are pulling a total of **220 Watts** right now. Today's total energy used is **4.872 kWh**. Work Room 2 is drawing the most power (120W) due to the ceiling fan."* |
+| `!room work1`| Retrieves specific room stats | *"Work Room 1: Currently occupied by 1 person. Fan 1 is OFF, Light 1 is ON. No energy wastage warnings."* |
+| `!occupants`| Shows employee contact list | *"Here is the current registered office list: Nafisa Rahman (Lead Developer) & Tanvir Hossain (System Admin)."* |
+
+---
+
+## 🔒 8. Anomaly & Safety Rules
+The system checks and issues alerts automatically for the following anomaly triggers:
+1.  **After-Hours Activity**: Any lights/fans left running outside 9 AM - 5 PM business hours.
+2.  **Unoccupied Room Waste**: Lights/fans running in a room where the sensor reads `is_occupied = 0` for more than 15 minutes.
+3.  **Continuous Run Warning**: Any device running continuously for more than 2 hours without interruption.

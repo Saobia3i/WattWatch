@@ -3,16 +3,12 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "../../../lib/sqlite";
-import { initializeDatabase } from "../../../lib/init-db";
 import { broadcast } from "../../../lib/db"; // Keeps the real-time websocket working
 
 // GET: Fetch all devices and initialize DB if missing
 export async function GET() {
   try {
-    // 1. Ensure the database and tables exist
-    await initializeDatabase();
-
-    // 2. Connect to SQLite
+    // Connect to SQLite (handles initialization automatically)
     const db = await getDb();
 
     // 3. Read the live data
@@ -37,11 +33,11 @@ export async function GET() {
   }
 }
 
-// POST: Toggle a device on/off
+// POST: Set or toggle a device on/off
 export async function POST(request: NextRequest) {
   try {
-    // Parse the JSON exactly once to get the ID from the frontend
-    const { id } = await request.json();
+    // Parse the JSON exactly once to get the ID/status from the frontend
+    const { id, status } = await request.json();
     const db = await getDb();
 
     // 1. Find the device in the SQLite database
@@ -50,8 +46,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
     }
 
-    // 2. Toggle the status (0 to 1, or 1 to 0)
-    const newIsOn = device.is_on === 1 ? 0 : 1;
+    // 2. Respect explicit ON/OFF commands; fall back to toggle for older callers
+    const newIsOn =
+      status === "on" ? 1 :
+      status === "off" ? 0 :
+      device.is_on === 1 ? 0 : 1;
     const now = new Date().toISOString();
 
     // 3. Save the new status to SQLite

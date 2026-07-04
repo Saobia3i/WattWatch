@@ -1,9 +1,9 @@
-
 // lib/sqlite.ts
 import sqlite3 from 'sqlite3';
 import { open, Database } from 'sqlite';
 import path from 'path';
 import fs from 'fs';
+import { initializeDatabase } from './init-db';
 
 let dbInstance: Database | null = null;
 
@@ -57,6 +57,9 @@ export async function getDb() {
 
   // Enable foreign keys
   await dbInstance.exec('PRAGMA foreign_keys = ON;');
+
+  // Guarantee database and tables are fully initialized to avoid race conditions
+  await initializeDatabase(dbInstance);
 
   return dbInstance;
 }

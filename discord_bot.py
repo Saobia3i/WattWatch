@@ -3,8 +3,10 @@ import json
 import asyncio
 import aiohttp
 import discord
+import threading
 from discord.ext import commands
 from dotenv import load_dotenv
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 
 # Load environmental configs
 load_dotenv()
@@ -19,6 +21,31 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+# Tiny dummy HTTP Server to satisfy Render Free Web Service health checks
+class HealthCheckHandler(SimpleHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/':
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"OK")
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        # Mute logging to keep console clean
+        pass
+
+def run_health_check_server():
+    try:
+        port = int(os.getenv("PORT", 8080))
+        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+        print(f"[HealthCheck] Running dummy HTTP server on port {port} for Render Free Web Service...")
+        server.serve_forever()
+    except Exception as e:
+        print(f"[HealthCheck] Warning: Dummy health server could not start: {e}. (This is normal when running locally if port {os.getenv('PORT', 8080)} is in use. The bot will still run fine!)")
 
 async def ask_llm(prompt: str) -> str:
     """Friendly conversational helper utilizing Gemini 2.5 Flash or Groq Llama-3 API"""
@@ -307,6 +334,10 @@ async def cmd_occupants(ctx):
 
 if __name__ == "__main__":
     if not TOKEN:
-        print("[CRITICAL] DISCORD_BOT_TOKEN environment variable not set in .env!")
+        print("[CRITICAL] DISCORD_BOT_TOKEN environment variable not set!")
     else:
+        # Start the dummy HTTP server to satisfy Render's health checks for free web services
+        health_thread = threading.Thread(target=run_health_check_server, daemon=True)
+        health_thread.start()
+        
         bot.run(TOKEN)

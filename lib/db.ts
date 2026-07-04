@@ -198,7 +198,7 @@ export function startServerSimulator() {
       }
 
       // 2. Telemetry update for optional devices
-      const devices = await dbConn.all("SELECT * FROM devices");
+      const devices = await dbConn.all<DeviceRow[]>("SELECT * FROM devices");
       for (const room of ROOM_KEYS) {
         if (now < nextDeviceTelemetryAt[room]) continue;
         nextDeviceTelemetryAt[room] = now + nextDeviceTelemetryDelay();
@@ -232,7 +232,7 @@ export function startServerSimulator() {
       }
 
       // 3. Accumulate energy kWh
-      const currentDevices = await dbConn.all("SELECT * FROM devices");
+      const currentDevices = await dbConn.all<DeviceRow[]>("SELECT * FROM devices");
       let totalWatts = 0;
       const perRoomWatts = { drawing: 0, work1: 0, work2: 0 };
       currentDevices.forEach((d) => {
@@ -302,7 +302,5 @@ export function startServerSimulator() {
   }, 3000);
 }
 
-// Start local simulator in dev mode
-if (process.env.NODE_ENV !== "production") {
-  startServerSimulator();
-}
+// Start local simulator in all modes (production & dev) to keep DB dynamic
+startServerSimulator();
