@@ -10,19 +10,37 @@ type Occupant = {
   phone: string;
 };
 
+const FALLBACK_OCCUPANTS: Occupant[] = [
+  {
+    id: "nafisa",
+    name: "Nafisa Rahman",
+    email: "nafisa.rahman@yahoo.com",
+    phone: "+8801812345678",
+  },
+  {
+    id: "tanvir",
+    name: "Tanvir Hossain",
+    email: "tanvir.hossain@yahoo.com",
+    phone: "+8801912345678",
+  },
+];
+
 export default function DirectoryPanel() {
-  const [occupants, setOccupants] = useState<Occupant[]>([]);
+  const [occupants, setOccupants] = useState<Occupant[]>(FALLBACK_OCCUPANTS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/occupants")
       .then((r) => r.json())
       .then((data) => {
-        setOccupants(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setOccupants(data);
+        }
         setLoading(false);
       })
       .catch((e) => {
         console.error("Error fetching occupants:", e);
+        setOccupants(FALLBACK_OCCUPANTS);
         setLoading(false);
       });
   }, []);
