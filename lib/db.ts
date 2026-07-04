@@ -295,39 +295,41 @@ export function startServerSimulator() {
         }
       }
 
-      // 5. Proactive after-hours alert checks (5:00 PM - 9:00 AM hourly; 3:30 PM - 5:00 PM every 5 min for testing)
-      const localTime = new Date();
-      const localHours = localTime.getHours();
-      const localMinutes = localTime.getMinutes();
-      const timeKey = `${localHours}:${localMinutes}`;
+      // 5. Proactive after-hours alert checks — uses Bangladesh time (UTC+6) explicitly
+      //    so it works correctly on Render (UTC server) and locally.
+      const bdParts = new Intl.DateTimeFormat('en-BD', {
+        timeZone: 'Asia/Dhaka',
+        hour: 'numeric', minute: 'numeric', hour12: false
+      }).formatToParts(new Date());
+      const bdHours = parseInt(bdParts.find(p => p.type === 'hour')!.value, 10);
+      const bdMinutes = parseInt(bdParts.find(p => p.type === 'minute')!.value, 10);
+      const timeKey = `${bdHours}:${bdMinutes}`;
 
       let shouldTrigger = false;
       let timeFormatted = "";
 
-      // Testing range: 3:30 PM to 5:00 PM (15:30 to 16:59)
-      if (localHours === 15 && localMinutes >= 30) {
-        if (localMinutes % 5 === 0) {
+      // Testing range: 3:30 PM to 5:00 PM BD time (15:30 to 16:59)
+      if (bdHours === 15 && bdMinutes >= 30) {
+        if (bdMinutes % 5 === 0) {
           shouldTrigger = true;
-          const ampm = localHours >= 12 ? 'PM' : 'AM';
-          const displayHour = localHours % 12 || 12;
-          const displayMinute = localMinutes < 10 ? `0${localMinutes}` : localMinutes;
-          timeFormatted = `${displayHour}:${displayMinute} ${ampm}`;
+          const displayHour = bdHours % 12 || 12;
+          const displayMinute = bdMinutes < 10 ? `0${bdMinutes}` : bdMinutes;
+          timeFormatted = `${displayHour}:${displayMinute} PM`;
         }
-      } else if (localHours === 16) {
-        if (localMinutes % 5 === 0) {
+      } else if (bdHours === 16) {
+        if (bdMinutes % 5 === 0) {
           shouldTrigger = true;
-          const ampm = localHours >= 12 ? 'PM' : 'AM';
-          const displayHour = localHours % 12 || 12;
-          const displayMinute = localMinutes < 10 ? `0${localMinutes}` : localMinutes;
-          timeFormatted = `${displayHour}:${displayMinute} ${ampm}`;
+          const displayHour = bdHours % 12 || 12;
+          const displayMinute = bdMinutes < 10 ? `0${bdMinutes}` : bdMinutes;
+          timeFormatted = `${displayHour}:${displayMinute} PM`;
         }
       }
-      // Production range: after-hours outside 9:00 AM - 5:00 PM (i.e. >= 17:00 or < 9:00)
-      else if (localHours >= 17 || localHours < 9) {
-        if (localMinutes === 0) {
+      // Production range: after-hours outside 9:00 AM - 5:00 PM BD time
+      else if (bdHours >= 17 || bdHours < 9) {
+        if (bdMinutes === 0) {
           shouldTrigger = true;
-          const ampm = localHours >= 12 ? 'PM' : 'AM';
-          const displayHour = localHours % 12 || 12;
+          const ampm = bdHours >= 12 ? 'PM' : 'AM';
+          const displayHour = bdHours % 12 || 12;
           timeFormatted = `${displayHour} ${ampm}`;
         }
       }

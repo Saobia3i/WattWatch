@@ -4,8 +4,10 @@ import time
 import random
 import urllib.request
 import urllib.error
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
+
+BD_TZ = timezone(timedelta(hours=6))  # Bangladesh Standard Time = UTC+6
 
 # Load environmental configs
 load_dotenv()
@@ -246,32 +248,32 @@ def main():
                 vacant_since[r] = None
                 triggered_vacant_alerts[r] = False
 
-        # Rule B: Proactive after-hours consolidated check (5:00 PM - 9:00 AM hourly; 3:30 PM - 5:00 PM every 5 min for testing)
+        # Rule B: Proactive after-hours consolidated check — uses Bangladesh time (UTC+6)
+        #          so it works correctly whether running locally or on a UTC server (Render).
+        now_bd = datetime.now(BD_TZ)
         should_trigger = False
         time_formatted = ""
-        time_key = f"{now.hour}:{now.minute}"
+        time_key = f"{now_bd.hour}:{now_bd.minute}"
 
-        # Testing range: 3:30 PM to 5:00 PM (15:30 to 16:59)
-        if now.hour == 15 and now.minute >= 30:
-            if now.minute % 5 == 0:
+        # Testing range: 3:30 PM to 5:00 PM BD time (15:30 to 16:59)
+        if now_bd.hour == 15 and now_bd.minute >= 30:
+            if now_bd.minute % 5 == 0:
                 should_trigger = True
-                ampm = 'PM' if now.hour >= 12 else 'AM'
-                display_hour = now.hour % 12 if now.hour % 12 != 0 else 12
-                display_minute = f"0{now.minute}" if now.minute < 10 else now.minute
-                time_formatted = f"{display_hour}:{display_minute} {ampm}"
-        elif now.hour == 16:
-            if now.minute % 5 == 0:
+                display_hour = now_bd.hour % 12 if now_bd.hour % 12 != 0 else 12
+                display_minute = f"0{now_bd.minute}" if now_bd.minute < 10 else now_bd.minute
+                time_formatted = f"{display_hour}:{display_minute} PM"
+        elif now_bd.hour == 16:
+            if now_bd.minute % 5 == 0:
                 should_trigger = True
-                ampm = 'PM' if now.hour >= 12 else 'AM'
-                display_hour = now.hour % 12 if now.hour % 12 != 0 else 12
-                display_minute = f"0{now.minute}" if now.minute < 10 else now.minute
-                time_formatted = f"{display_hour}:{display_minute} {ampm}"
-        # Production range: after-hours outside 9:00 AM - 5:00 PM (i.e. >= 17:00 or < 9:00)
-        elif now.hour >= 17 or now.hour < 9:
-            if now.minute == 0:
+                display_hour = now_bd.hour % 12 if now_bd.hour % 12 != 0 else 12
+                display_minute = f"0{now_bd.minute}" if now_bd.minute < 10 else now_bd.minute
+                time_formatted = f"{display_hour}:{display_minute} PM"
+        # Production range: after-hours outside 9:00 AM - 5:00 PM BD time
+        elif now_bd.hour >= 17 or now_bd.hour < 9:
+            if now_bd.minute == 0:
                 should_trigger = True
-                ampm = 'PM' if now.hour >= 12 else 'AM'
-                display_hour = now.hour % 12 if now.hour % 12 != 0 else 12
+                ampm = 'PM' if now_bd.hour >= 12 else 'AM'
+                display_hour = now_bd.hour % 12 if now_bd.hour % 12 != 0 else 12
                 time_formatted = f"{display_hour} {ampm}"
 
         if should_trigger and last_time_alert_triggered != time_key:
