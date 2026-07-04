@@ -7,6 +7,7 @@ import OfficeBlueprint from "../components/blueprint/OfficeBlueprint";
 import PowerMeterPanel from "../components/panels/PowerMeterPanel";
 import AlertsPanel from "../components/panels/AlertsPanel";
 import DeviceStatusPanel from "../components/panels/DeviceStatusPanel";
+import DirectoryPanel from "../components/panels/DirectoryPanel";
 import StatusDot from "../components/ui/StatusDot";
 import { formatWatts } from "../lib/format";
 
@@ -179,9 +180,14 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Full Device Control Grid (Desktop) */}
-        <div className="w-full">
-          <DeviceStatusPanel devices={devices} onSetDeviceStatus={setDeviceStatus} />
+        {/* Full Device Control & Office Directory (Grid) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+          <div className="lg:col-span-8">
+            <DeviceStatusPanel devices={devices} onSetDeviceStatus={setDeviceStatus} />
+          </div>
+          <div className="lg:col-span-4">
+            <DirectoryPanel />
+          </div>
         </div>
       </main>
       

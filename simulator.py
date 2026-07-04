@@ -1,10 +1,14 @@
-#!/usr/bin/env python3
+import os
 import json
 import time
 import random
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
+from dotenv import load_dotenv
+
+# Load environmental configs
+load_dotenv()
 
 # Rooms configuration
 ROOMS = ["drawing", "work1", "work2"]
@@ -48,7 +52,12 @@ def is_optional_device(device):
     )
 
 def probe_base_url():
-    """Probe ports 3000 to 3005 dynamically to find where Next.js is running"""
+    """Probe ports 3000 to 3005 dynamically to find where Next.js is running, or read from env"""
+    env_url = os.getenv("NEXT_PUBLIC_API_URL")
+    if env_url:
+        print(f"[SYSTEM] Using target API URL from .env: {env_url}")
+        return env_url
+
     print("[SYSTEM] Probing active Next.js dev server port...")
     for port in range(3000, 3006):
         url = f"http://localhost:{port}/api/simulate"

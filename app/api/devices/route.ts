@@ -33,11 +33,11 @@ export async function GET() {
   }
 }
 
-// POST: Toggle a device on/off
+// POST: Set or toggle a device on/off
 export async function POST(request: NextRequest) {
   try {
-    // Parse the JSON exactly once to get the ID from the frontend
-    const { id } = await request.json();
+    // Parse the JSON exactly once to get the ID/status from the frontend
+    const { id, status } = await request.json();
     const db = await getDb();
 
     // 1. Find the device in the SQLite database
@@ -46,8 +46,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Device not found" }, { status: 404 });
     }
 
-    // 2. Toggle the status (0 to 1, or 1 to 0)
-    const newIsOn = device.is_on === 1 ? 0 : 1;
+    // 2. Respect explicit ON/OFF commands; fall back to toggle for older callers
+    const newIsOn =
+      status === "on" ? 1 :
+      status === "off" ? 0 :
+      device.is_on === 1 ? 0 : 1;
     const now = new Date().toISOString();
 
     // 3. Save the new status to SQLite
