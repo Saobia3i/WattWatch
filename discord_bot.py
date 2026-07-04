@@ -22,14 +22,23 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Tiny dummy HTTP Server to satisfy Render Free Web Service health checks
+# HTTP Server to keep Render Free Web Service awake (pinged by UptimeRobot)
 class HealthCheckHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/':
+            status = "online" if (bot.is_ready() if hasattr(bot, 'is_ready') else False) else "starting"
+            body = f"WattWatch Bot | Status: {status} | Uptime ping OK".encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(b"OK")
+            self.wfile.write(body)
+        elif self.path == '/health':
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            ready = bot.is_ready() if hasattr(bot, 'is_ready') else False
+            self.wfile.write(f'{{"status":"ok","bot_ready":{str(ready).lower()}}}'.encode())
         else:
             self.send_response(404)
             self.end_headers()
@@ -42,10 +51,10 @@ def run_health_check_server():
     try:
         port = int(os.getenv("PORT", 8080))
         server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-        print(f"[HealthCheck] Running dummy HTTP server on port {port} for Render Free Web Service...")
+        print(f"[HealthCheck] Keep-alive server on port {port} — ready for UptimeRobot pings.")
         server.serve_forever()
     except Exception as e:
-        print(f"[HealthCheck] Warning: Dummy health server could not start: {e}. (This is normal when running locally if port {os.getenv('PORT', 8080)} is in use. The bot will still run fine!)")
+        print(f"[HealthCheck] Warning: Keep-alive server could not start: {e}. Bot will still run.")
 
 async def ask_llm(prompt: str) -> str:
     """Friendly conversational helper utilizing Gemini 2.5 Flash or Groq Llama-3 API"""
@@ -86,7 +95,8 @@ async def ask_llm(prompt: str) -> str:
     return ""
 
 async def listen_to_sse():
-    """Async task connecting to Next.js API stream to broadcast live alerts to Discord"""
+    """Async task connecting to Next.js API stream to broadcast live alerts to Discord.
+    Uses exponential backoff on reconnect so no alerts are missed after a wake-up."""
     await bot.wait_until_ready()
     if not ALERT_CHANNEL_ID:
         print("[Bot] DISCORD_ALERT_CHANNEL_ID not set. Real-time alert listener disabled.")
@@ -105,11 +115,16 @@ async def listen_to_sse():
 
     stream_url = f"{API_BASE_URL}/api/stream"
     print(f"[Bot] Alert listener connecting to SSE: {stream_url}")
-    
+
+    retry_delay = 5  # seconds — starts at 5, doubles on each failure (max 60s)
+
     while not bot.is_closed():
         try:
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=None, connect=10)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(stream_url, headers={"Accept": "text/event-stream"}) as response:
+                    print(f"[SSE] Connected to stream (status {response.status}). Listening for alerts...")
+                    retry_delay = 5  # reset backoff on successful connect
                     async for line_bytes in response.content:
                         line = line_bytes.decode('utf-8').strip()
                         if line.startswith("data:"):
@@ -119,7 +134,7 @@ async def listen_to_sse():
                                     payload = event.get("payload", {})
                                     severity = payload.get("severity", "warning").upper()
                                     message = payload.get("message", "Anomaly detected.")
-                                    
+
                                     embed = discord.Embed(
                                         title=f"⚠️ {severity} ALERT: Office Anomaly",
                                         description=message,
@@ -130,8 +145,9 @@ async def listen_to_sse():
                             except Exception as parse_err:
                                 print(f"[SSE] Parse error: {parse_err}")
         except Exception as conn_err:
-            print(f"[SSE] Connection error: {conn_err}. Retrying in 5 seconds...")
-            await asyncio.sleep(5)
+            print(f"[SSE] Connection lost: {conn_err}. Retrying in {retry_delay}s...")
+            await asyncio.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, 60)  # exponential backoff, max 60s
 
 @bot.event
 async def on_ready():
