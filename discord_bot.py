@@ -34,11 +34,13 @@ class HealthCheckHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
         elif self.path == '/health':
+            ready = bot.is_ready() if hasattr(bot, 'is_ready') else False
+            body = json.dumps({"status": "ok", "bot_ready": ready}).encode()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            ready = bot.is_ready() if hasattr(bot, 'is_ready') else False
-            self.wfile.write(f'{{"status":"ok","bot_ready":{str(ready).lower()}}}'.encode())
+            self.wfile.write(body)
         else:
             self.send_response(404)
             self.end_headers()
@@ -123,8 +125,13 @@ async def listen_to_sse():
             timeout = aiohttp.ClientTimeout(total=None, connect=10)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(stream_url, headers={"Accept": "text/event-stream"}) as response:
-                    print(f"[SSE] Connected to stream (status {response.status}). Listening for alerts...")
-                    retry_delay = 5  # reset backoff on successful connect
+                    if response.status != 200:
+                        raise RuntimeError(f"Unexpected HTTP status {response.status}")
+
+                    # Confirmed 200 OK — safe to reset backoff
+                    print(f"[SSE] Connected (200 OK). Listening for alerts...")
+                    retry_delay = 5
+
                     async for line_bytes in response.content:
                         line = line_bytes.decode('utf-8').strip()
                         if line.startswith("data:"):
@@ -144,6 +151,10 @@ async def listen_to_sse():
                                     await channel.send(embed=embed)
                             except Exception as parse_err:
                                 print(f"[SSE] Parse error: {parse_err}")
+
+                    # async-for exhausted — server closed the stream (EOF)
+                    raise RuntimeError("Stream closed by server (EOF)")
+
         except Exception as conn_err:
             print(f"[SSE] Connection lost: {conn_err}. Retrying in {retry_delay}s...")
             await asyncio.sleep(retry_delay)
