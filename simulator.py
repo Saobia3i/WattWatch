@@ -118,6 +118,7 @@ def main():
         r: time.time() + next_device_telemetry_delay()
         for r in ROOMS
     }
+    last_time_alert_triggered = None
 
     while True:
         now_ts = time.time()
@@ -295,6 +296,40 @@ def main():
                             "room": r
                         }
                         make_request(alerts_url, alert_payload, method="POST")
+
+        # Rule D: Proactive time-of-day alert checks (10:00 PM and 3:15 PM/AM testing)
+        is_target_time = (now.hour == 15 and now.minute == 15) or \
+                         (now.hour == 3 and now.minute == 15) or \
+                         (now.hour == 22 and now.minute == 0)
+        time_key = f"{now.hour}:{now.minute}"
+
+        if is_target_time and last_time_alert_triggered != time_key:
+            last_time_alert_triggered = time_key
+            time_formatted = "10 PM" if now.hour == 22 else ("3:15 PM" if now.hour == 15 else "3:15 AM")
+            
+            for r in ROOMS:
+                room_devices = [d for d in devices if d.get("room") == r]
+                active_devs = [d for d in room_devices if d.get("status") == "on"]
+                if active_devs:
+                    fans = sum(1 for d in active_devs if d.get("type") == "fan")
+                    lights = sum(1 for d in active_devs if d.get("type") == "light")
+                    
+                    parts_list = []
+                    if fans > 0:
+                        parts_list.append(f"{fans} fan{'s' if fans > 1 else ''}")
+                    if lights > 0:
+                        parts_list.append(f"{lights} light{'s' if lights > 1 else ''}")
+                    device_description = " and ".join(parts_list)
+                    
+                    alert_msg = f"⚠️ Hey! {ROOM_NAMES[r]} still has {device_description} ON and it's {time_formatted}. Did someone forget to leave?"
+                    print(f"  [ALERT TRIGGERED] {alert_msg}")
+                    
+                    alert_payload = {
+                        "severity": "warning",
+                        "message": alert_msg,
+                        "room": r
+                    }
+                    make_request(alerts_url, alert_payload, method="POST")
 
         # 4. Increment simulated kWh cumulative consumption in background
         active_load_watts = sum([d.get("wattage", 0) for d in devices if d.get("status") == "on"])

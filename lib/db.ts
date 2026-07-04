@@ -145,6 +145,7 @@ export function startServerSimulator() {
 
   const vacantSince: Record<RoomKey, number | null> = { drawing: null, work1: null, work2: null };
   const alertsSent: Record<RoomKey, boolean> = { drawing: false, work1: false, work2: false };
+  let lastTimeAlertTriggered: string | null = null;
   
   const initialNow = Date.now();
   const nextOccupancyTransitionAt: Record<RoomKey, number> = {
@@ -291,9 +292,51 @@ export function startServerSimulator() {
             vacantSince[r] = null;
             alertsSent[r] = false;
           }
-        } else {
-          vacantSince[r] = null;
-          alertsSent[r] = false;
+        }
+      }
+
+      // 5. Proactive time-of-day alert checks (10:00 PM and 3:15 PM/AM testing)
+      const localTime = new Date();
+      const localHours = localTime.getHours();
+      const localMinutes = localTime.getMinutes();
+      const timeKey = `${localHours}:${localMinutes}`;
+      const isTargetTime = (localHours === 15 && localMinutes === 15) || 
+                           (localHours === 3 && localMinutes === 15) || 
+                           (localHours === 22 && localMinutes === 0);
+
+      if (isTargetTime && lastTimeAlertTriggered !== timeKey) {
+        lastTimeAlertTriggered = timeKey;
+        const timeFormatted = localHours === 22 ? "10 PM" : (localHours === 15 ? "3:15 PM" : "3:15 AM");
+        
+        for (const r of ROOM_KEYS) {
+          const roomDevices = currentDevices.filter((d) => d.room_id === r && d.is_on === 1);
+          if (roomDevices.length > 0) {
+            const fans = roomDevices.filter((d) => d.type === "fan").length;
+            const lights = roomDevices.filter((d) => d.type === "light").length;
+            
+            const partsList: string[] = [];
+            if (fans > 0) partsList.push(`${fans} fan${fans > 1 ? "s" : ""}`);
+            if (lights > 0) partsList.push(`${lights} light${lights > 1 ? "s" : ""}`);
+            const deviceDescription = partsList.join(" and ");
+            
+            const roomName = r === "drawing" ? "Drawing Room" : (r === "work1" ? "Work Room 1" : "Work Room 2");
+            const alertMsg = `⚠️ Hey! ${roomName} still has ${deviceDescription} ON and it's ${timeFormatted}. Did someone forget to leave?`;
+            const alertId = `alert-time-${r}-${now}`;
+            
+            await dbConn.run(
+              "INSERT INTO alerts (id, room_id, severity, message, is_active, triggered_at) VALUES (?, ?, 'warning', ?, 1, ?)",
+              [alertId, r, alertMsg, nowIso]
+            );
+            
+            broadcast("alert", {
+              id: alertId,
+              severity: "warning",
+              message: alertMsg,
+              room: r,
+              timestamp: nowIso,
+            });
+            console.log(`[Server Simulator] Time-of-day alert triggered: ${alertMsg}`);
+          }
         }
       }
     } catch (err) {
