@@ -3,16 +3,12 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "../../../lib/sqlite";
-import { initializeDatabase } from "../../../lib/init-db";
 import { broadcast } from "../../../lib/db"; // Keeps the real-time websocket working
 
 // GET: Fetch all devices and initialize DB if missing
 export async function GET() {
   try {
-    // 1. Ensure the database and tables exist
-    await initializeDatabase();
-
-    // 2. Connect to SQLite
+    // Connect to SQLite (handles initialization automatically)
     const db = await getDb();
 
     // 3. Read the live data

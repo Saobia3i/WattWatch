@@ -1,8 +1,6 @@
-// lib/init-db.ts
-import { getDb } from "./sqlite";
+import { Database } from "sqlite";
 
-export async function initializeDatabase() {
-  const db = await getDb();
+export async function initializeDatabase(db: Database) {
 
   await db.exec(`
     CREATE TABLE IF NOT EXISTS rooms (
